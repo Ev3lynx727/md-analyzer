@@ -267,6 +267,33 @@ function main(): void {
   const configPath = path.join(__dirname, 'hooks.toml')
   const config = getTomlConfig(configPath)
   
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`md-analyzer - Markdown document analyzer for AI agents
+
+Usage: md-analyzer <directory> [options]
+
+Options:
+  --json              Output as JSON
+  --search <kw>       Search keyword in content
+  --filter <k=v>      Filter by metadata field
+  --rank              Rank results by relevance
+  --graph             Document relationship graph
+  --orphans           Find unreferenced docs
+  --backlinks <doc>   Find docs linking to <doc>
+  --keypoints         Quick overview (single-shot)
+  --session           Token budget report
+  --budget <n>        Set token budget limit
+  --max-results <n>   Limit output
+  --help, -h          Show this help message
+
+Examples:
+  md-analyzer /path/to/docs --keypoints --json
+  md-analyzer . --search "task" --rank --json
+  md-analyzer . --session --budget 50000 --json
+  md-analyzer . --orphans --json`)
+    process.exit(0)
+  }
+  
   let cliDir = ''
   for (let i = 2; i < process.argv.length; i++) {
     if (!process.argv[i].startsWith('-')) { cliDir = process.argv[i]; break }

@@ -1,10 +1,11 @@
 {
-  "name": "md-analyzer",
-  "version": "1.0.0",
+  "name": "@ev3lynx/md-analyzer",
+  "version": "0.1.1",
   "description": "Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points",
   "main": "md-analyzer.js",
   "bin": {
-    "md-analyzer": "./md-analyzer.js"
+    "md-analyzer": "./md-analyzer.js",
+    "@ev3lynx/md-analyzer": "./md-analyzer.js"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
@@ -46,6 +47,7 @@
     "src/",
     "hooks.toml",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    ".env.example"
   ]
 }

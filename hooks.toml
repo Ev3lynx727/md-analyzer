@@ -16,8 +16,8 @@ capabilities = [
 
 [tool.md-analyzer.config]
 # Path configuration
-default_directory = "/home/ev3lynx/.openclaw/workspace-gh0st/headquarters/knowledge/"
-tool_path = "/home/ev3lynx/dev/micromark/md-analyzer.js"
+default_directory = ""
+tool_path = ""
 
 # Token budget configuration
 default_budget = 100000
