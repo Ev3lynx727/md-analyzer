@@ -55,7 +55,7 @@ npm --version   # Should be >= 8.0.0
 ### From npm (recommended)
 
 ```bash
-npm install -g md-analyzer
+npm install -g @Ev3lynx727md-analyzer
 md-analyzer --help
 ```
 
@@ -292,15 +292,11 @@ Location: `{project}/log/{sessionId}.json`
 ## Architecture
 
 ```
-micromark/
+md-analyzer/
 ├── src/
 │   └── md-analyzer.ts      # Main source (TypeScript)
 ├── md-analyzer.js          # Compiled output
 ├── hooks.toml              # Configuration
-├── docs/
-│   ├── API.md              # API reference
-│   ├── DEVELOPMENT.md      # Dev journey
-│   └── proposal/            # Future designs
 └── log/                    # Run logs
 ```
 
