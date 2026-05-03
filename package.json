@@ -24,12 +24,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ev3lynx/md-analyzer.git"
+    "url": "https://github.com/Ev3lynx727/md-analyzer.git"
   },
   "bugs": {
-    "url": "https://github.com/ev3lynx/md-analyzer/issues"
+    "url": "https://github.com/Ev3lynx727/md-analyzer/issues"
   },
-  "homepage": "https://github.com/ev3lynx/md-analyzer#readme",
+  "homepage": "https://github.com/Ev3lynx727/md-analyzer#readme",
   "engines": {
     "node": ">=18.0.0"
   },
