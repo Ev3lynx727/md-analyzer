@@ -1,0 +1,51 @@
+{
+  "name": "md-analyzer",
+  "version": "1.0.0",
+  "description": "Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points",
+  "main": "md-analyzer.js",
+  "bin": {
+    "md-analyzer": "./md-analyzer.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "prepublish": "npm run build",
+    "test": "node md-analyzer.js . --json"
+  },
+  "keywords": [
+    "markdown",
+    "analyzer",
+    "ai-agents",
+    "tokens",
+    "document-analysis",
+    "metadata",
+    "graph"
+  ],
+  "author": "ev3lynx",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ev3lynx/md-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ev3lynx/md-analyzer/issues"
+  },
+  "homepage": "https://github.com/ev3lynx/md-analyzer#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "micromark": "^4.0.0",
+    "js-tiktoken": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "md-analyzer.js",
+    "src/",
+    "hooks.toml",
+    "README.md",
+    "LICENSE"
+  ]
+}
