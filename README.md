@@ -55,7 +55,7 @@ npm --version   # Should be >= 8.0.0
 ### From npm (recommended)
 
 ```bash
-npm install -g @Ev3lynx727md-analyzer
+npm install -g @Ev3lynx727/md-analyzer
 md-analyzer --help
 ```
 
