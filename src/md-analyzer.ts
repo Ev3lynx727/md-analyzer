@@ -266,7 +266,7 @@ function main(): void {
   const startTime = Date.now()
   const configPath = path.join(__dirname, 'hooks.toml')
   const config = getTomlConfig(configPath)
-  
+
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log(`md-analyzer - Markdown document analyzer for AI agents
 
@@ -293,12 +293,12 @@ Examples:
   md-analyzer . --orphans --json`)
     process.exit(0)
   }
-  
+
   let cliDir = ''
   for (let i = 2; i < process.argv.length; i++) {
     if (!process.argv[i].startsWith('-')) { cliDir = process.argv[i]; break }
   }
-  
+
   const targetDir = cliDir || process.env['MD_ANALYZER_DEFAULT_DIR'] || config['default_directory'] || process.cwd()
   const jsonOnly = process.argv.includes('--json')
   const graphMode = process.argv.includes('--graph')
@@ -306,19 +306,19 @@ Examples:
   const rankMode = process.argv.includes('--rank')
   const sessionMode = process.argv.includes('--session')
   const keypointsMode = process.argv.includes('--keypoints')
-  
+
   const budgetIdx = process.argv.findIndex(arg => arg === '--budget')
   const budget = budgetIdx > 0 ? parseInt(process.argv[budgetIdx + 1] || '', 10) || 100000 : 100000
-  
+
   const maxResultsIdx = process.argv.findIndex(arg => arg === '--max-results')
   const maxResults = maxResultsIdx > 0 ? parseInt(process.argv[maxResultsIdx + 1] || '', 10) || 0 : 0
-  
+
   const backlinksIdx = process.argv.findIndex(arg => arg === '--backlinks')
   const backlinksTarget = backlinksIdx > 0 ? process.argv[backlinksIdx + 1] || null : null
-  
+
   const searchIdx = process.argv.findIndex(arg => arg === '--search')
   const searchKeyword = searchIdx > 0 ? process.argv[searchIdx + 1] || null : null
-  
+
   const filterIdx = process.argv.findIndex(arg => arg === '--filter')
   const filterArg = filterIdx > 0 ? process.argv[filterIdx + 1] || null : null
 

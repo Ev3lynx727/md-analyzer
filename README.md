@@ -152,7 +152,7 @@ function analyzeDocs(directory, options = {}) {
   const args = ['md-analyzer.js', directory, '--json'];
   if (options.keypoints) args.push('--keypoints');
   if (options.search) args.push('--search', options.search);
-  
+
   const result = execSync(`node ${args.join(' ')}`, { encoding: 'utf-8' });
   return JSON.parse(result);
 }
@@ -174,7 +174,7 @@ def run_md_analyzer(directory, **kwargs):
             args.append(f"--{key}")
         elif value:
             args.extend([f"--{key}", str(value)])
-    
+
     result = subprocess.run(args, capture_output=True, text=True)
     return json.loads(result.stdout)
 
@@ -196,7 +196,7 @@ interface MyPluginOptions {
 export function myPlugin(options: MyPluginOptions) {
   const results = scanMarkdownFiles(options.directory);
   const analyzed = results.map(analyzeFile);
-  
+
   // Custom processing
   return analyzed.map(doc => ({
     ...extractKeyPoints(doc),
