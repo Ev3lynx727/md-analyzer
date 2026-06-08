@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { micromark } from 'micromark'
 import * as fs from 'fs'
 import * as path from 'path'
 import { encodingForModel } from 'js-tiktoken'
