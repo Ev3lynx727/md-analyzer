@@ -1,0 +1,55 @@
+[tool.md-analyzer]
+name = "md-analyzer"
+description = "Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points from .md files"
+
+[tool.md-analyzer.capabilities]
+capabilities = [
+  "Analyze markdown files recursively",
+  "Extract YAML frontmatter metadata",
+  "Parse headings (h1-h6)",
+  "Extract internal/external links",
+  "Parse markdown tables",
+  "Count tokens using tiktoken",
+  "Track session token budget",
+  "Build document relationship graph"
+]
+
+[tool.md-analyzer.config]
+# Path configuration
+default_directory = ""
+tool_path = ""
+
+# Token budget configuration
+default_budget = 100000
+max_tokens = 200000
+
+# Output safety (prevent token blowout)
+max_results_default = 20
+
+# Session file
+session_file = "/tmp/md-analyzer-session.json"
+
+[tool.md-analyzer.flags]
+json = "Output as JSON"
+search = "Search keyword in headings/metadata"
+filter = "Filter by metadata (e.g., category=guides)"
+rank = "Rank results by relevance"
+graph = "Output document relationship graph"
+orphans = "Find unreferenced documents"
+backlinks = "Find documents referencing a specific doc"
+keypoints = "Extract key points for quick overview (single-shot)"
+session = "Show session token budget stats"
+budget = "Set token budget limit (default: 100000)"
+
+[tool.md-analyzer.examples]
+quick_overview = "node md-analyzer.js <dir> --keypoints --json"
+search_and_rank = "node md-analyzer.js <dir> --search 'task' --rank --json"
+find_related = "node md-analyzer.js <dir> --backlinks adr-2026-04-01-task-lifecycle --json"
+token_budget = "node md-analyzer.js <dir> --session --budget 50000 --json"
+filter_by_category = "node md-analyzer.js <dir> --filter category=guides --json"
+
+[tool.md-analyzer.agent_use_case]
+single_shot = "Use --keypoints flag to get quick document overview without reading full content"
+rag_context = "Use --search + --rank to find relevant docs for RAG context"
+relationship_discovery = "Use --graph or --backlinks to understand doc relationships"
+token_tracking = "Use --session --budget to track token usage per agent session"
