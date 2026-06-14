@@ -1,19 +1,13 @@
+# Monorepo root — @ev3lynx/micromark
+
 # Dependencies
 node_modules/
 
-# Build outputs (let npm generate .map on install if needed)
+# Build outputs
 *.map
-
-# TypeScript
 *.tsbuildinfo
 dist/
 build/
-
-# Development
-docs/
-*.md
-!README.md
-!LICENSE
 
 # Python
 __pycache__/
@@ -22,22 +16,11 @@ __pycache__/
 *.pyd
 .Python
 *.egg-info/
-dist/
-build/
 *.egg
-langgraph_integration.py
 
 # Logs
-logs/
-*.log
 log/
-session-*.json
-
-# OS
-.DS_Store
-Thumbs.db
 *.log
-npm-debug.log*
 
 # OS
 .DS_Store
@@ -47,3 +30,7 @@ Thumbs.db
 *.tmp
 *.temp
 /tmp/
+
+# Generated session files
+session-*.json
+md-fabrication/

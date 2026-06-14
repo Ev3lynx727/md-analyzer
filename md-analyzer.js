@@ -37,6 +37,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const js_tiktoken_1 = require("js-tiktoken");
+const yaml = __importStar(require("js-yaml"));
 const SKIP_DIRS = new Set([
     'node_modules', '.git', '.svn', '.hg',
     'services', 'data', 'appendonlydir',
@@ -76,14 +77,14 @@ function extractFrontmatter(content) {
     const match = content.match(frontmatterRegex);
     if (!match)
         return { metadata: null, content };
-    const metadata = {};
-    match[1].split('\n').forEach(line => {
-        const colonIndex = line.indexOf(':');
-        if (colonIndex > 0) {
-            metadata[line.substring(0, colonIndex).trim()] = line.substring(colonIndex + 1).trim();
-        }
-    });
-    return { metadata, content: content.substring(match[0].length) };
+    try {
+        const parsed = yaml.load(match[1]);
+        const metadata = parsed && typeof parsed === 'object' ? parsed : null;
+        return { metadata, content: content.substring(match[0].length) };
+    }
+    catch {
+        return { metadata: null, content };
+    }
 }
 function extractHeadings(content) {
     const headings = [];
@@ -110,6 +111,32 @@ function extractLinks(content) {
         links.push({ text: match[1].trim(), url, isInternal, fileName });
     }
     return links;
+}
+function extractWikilinks(content) {
+    const wikilinks = [];
+    const wikiRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+    let match;
+    while ((match = wikiRegex.exec(content)) !== null) {
+        wikilinks.push({ target: match[1].trim(), display: match[2]?.trim() || null });
+    }
+    return wikilinks;
+}
+function extractFragmentMeta(metadata) {
+    if (!metadata)
+        return null;
+    const dependsRaw = metadata.depends_on;
+    const depends = Array.isArray(dependsRaw) ? dependsRaw.map(String) : (typeof dependsRaw === 'string' ? [dependsRaw] : []);
+    const tags = Array.isArray(metadata.tags) ? metadata.tags.map(String) : (typeof metadata.tags === 'string' ? [metadata.tags] : []);
+    return {
+        title: String(metadata.title || ''),
+        description: metadata.description ? String(metadata.description) : null,
+        tags,
+        depends_on: depends,
+        status: metadata.status ? String(metadata.status) : null,
+        source: metadata.source ? String(metadata.source) : null,
+        order: metadata.order != null ? Number(metadata.order) : null,
+        date_iso: metadata.date_iso ? String(metadata.date_iso) : null,
+    };
 }
 function extractTables(content) {
     const tables = [];
@@ -183,21 +210,34 @@ function analyzeFile(filePath) {
     }
     catch (e) {
         errors.push(`file_read_error: ${e instanceof Error ? e.message : 'unknown'}`);
-        return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, headings: [], links: [], tables: [],
-            stats: { totalHeadings: 0, totalLinks: 0, internalLinks: 0, externalLinks: 0, wordCount: 0, charCount: 0, lineCount: 0, codeBlocks: 0, tables: 0, tokens: 0, errors } };
+        return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, fragmentMeta: null, headings: [], links: [], wikilinks: [], tables: [],
+            stats: { totalHeadings: 0, totalLinks: 0, internalLinks: 0, externalLinks: 0, totalWikilinks: 0, wordCount: 0, charCount: 0, lineCount: 0, codeBlocks: 0, tables: 0, tokens: 0, errors } };
     }
     const { metadata, content: markdownContent } = extractFrontmatter(content);
+    const fragmentMeta = extractFragmentMeta(metadata);
     const headings = extractHeadings(markdownContent);
     const links = extractLinks(markdownContent);
+    const wikilinks = extractWikilinks(markdownContent);
     const tables = extractTables(markdownContent);
     const counts = countStats(markdownContent);
     if (counts.tokens === 0)
         errors.push('token_count_fallback: tiktoken unavailable');
-    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, headings, links, tables,
+    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, fragmentMeta, headings, links, wikilinks, tables,
         stats: { totalHeadings: headings.length, totalLinks: links.length, internalLinks: links.filter(l => l.isInternal).length,
-            externalLinks: links.filter(l => !l.isInternal).length, wordCount: counts.wordCount, charCount: counts.charCount,
-            lineCount: counts.lineCount, codeBlocks: counts.codeBlocks, tables: tables.length, tokens: counts.tokens,
-            errors: errors.length > 0 ? errors : undefined } };
+            externalLinks: links.filter(l => !l.isInternal).length, totalWikilinks: wikilinks.length, wordCount: counts.wordCount,
+            charCount: counts.charCount, lineCount: counts.lineCount, codeBlocks: counts.codeBlocks, tables: tables.length,
+            tokens: counts.tokens, errors: errors.length > 0 ? errors : undefined } };
+}
+function addEdge(graph, edges, source, target, type) {
+    if (!graph[source])
+        graph[source] = { inbound: [], outbound: [] };
+    if (!graph[target])
+        graph[target] = { inbound: [], outbound: [] };
+    if (!graph[source].outbound.includes(target))
+        graph[source].outbound.push(target);
+    if (!graph[target].inbound.includes(source))
+        graph[target].inbound.push(source);
+    edges.push({ source, target, type });
 }
 function buildGraph(results) {
     const graph = {}, edges = [];
@@ -206,22 +246,30 @@ function buildGraph(results) {
         if (!graph[source])
             graph[source] = { inbound: [], outbound: [] };
         doc.links.forEach(link => {
-            if (link.isInternal && link.fileName) {
-                const target = link.fileName;
-                if (!graph[target])
-                    graph[target] = { inbound: [], outbound: [] };
-                if (!graph[source].outbound.includes(target))
-                    graph[source].outbound.push(target);
-                if (!graph[target].inbound.includes(source))
-                    graph[target].inbound.push(source);
-                edges.push({ source, target });
-            }
+            if (link.isInternal && link.fileName)
+                addEdge(graph, edges, source, link.fileName, 'link');
         });
+        doc.wikilinks.forEach(w => {
+            const slug = w.target.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            if (slug !== source && results.some(r => r.fileName === slug))
+                addEdge(graph, edges, source, slug, 'wikilink');
+        });
+        if (doc.fragmentMeta) {
+            doc.fragmentMeta.depends_on.forEach(dep => {
+                const depName = dep.replace(/\.md$/, '');
+                if (depName !== source && results.some(r => r.fileName === depName))
+                    addEdge(graph, edges, source, depName, 'depends_on');
+            });
+        }
     });
     return { nodes: graph, edges };
 }
-function findOrphans(graph) {
-    return Object.keys(graph.nodes).filter(node => graph.nodes[node].inbound.length === 0 && graph.nodes[node].outbound.length === 0);
+function findOrphans(graph, excludeOrphansWithDeps) {
+    return Object.keys(graph.nodes).filter(node => {
+        if (excludeOrphansWithDeps?.has(node))
+            return false;
+        return graph.nodes[node].inbound.length === 0 && graph.nodes[node].outbound.length === 0;
+    });
 }
 function findBacklinks(results, targetFileName) {
     const backlinks = [];
@@ -231,15 +279,23 @@ function findBacklinks(results, targetFileName) {
                 backlinks.push(doc.fileName);
             }
         });
+        doc.wikilinks.forEach(w => {
+            const slug = w.target.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            if (slug === targetFileName && !backlinks.includes(doc.fileName))
+                backlinks.push(doc.fileName);
+        });
     });
     return backlinks;
 }
 function searchContent(results, keyword) {
     const kw = keyword.toLowerCase();
-    return results.filter(doc => fs.readFileSync(doc.file, 'utf-8').toLowerCase().includes(kw));
+    return results.filter(doc => {
+        const content = fs.readFileSync(doc.file, 'utf-8').toLowerCase();
+        return content.includes(kw);
+    });
 }
 function filterByMetadata(results, key, value) {
-    return results.filter(doc => doc.metadata && doc.metadata[key] === value);
+    return results.filter(doc => doc.metadata && String(doc.metadata[key] || '') === value);
 }
 function rankByRelevance(results, keyword) {
     const kw = keyword.toLowerCase();
@@ -251,7 +307,7 @@ function rankByRelevance(results, keyword) {
 }
 function extractKeyPoints(doc) {
     return { fileName: doc.fileName, title: doc.headings[0]?.text || doc.fileName, level: doc.headings[0]?.level || 1,
-        summary: { totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount },
+        summary: { totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalWikilinks: doc.stats.totalWikilinks, totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount },
         keyHeadings: doc.headings.slice(0, 5).map(h => ({ level: h.level, text: h.text })),
         importantLinks: doc.links.filter(l => !l.isInternal).slice(0, 3).map(l => ({ text: l.text, url: l.url })),
         internalReferences: doc.links.filter(l => l.isInternal && l.fileName).slice(0, 5).map(l => l.fileName),
@@ -289,6 +345,44 @@ function writeRunLog(log) {
     }
     catch { }
 }
+function getPositionalArg(start) {
+    for (let i = start; i < process.argv.length; i++) {
+        if (!process.argv[i].startsWith('-'))
+            return process.argv[i];
+    }
+    return '';
+}
+function getFlagArg(flag) {
+    const idx = process.argv.indexOf(flag);
+    return idx > 0 && idx + 1 < process.argv.length ? process.argv[idx + 1] : null;
+}
+function getFragmentHealth(results) {
+    const total = results.length;
+    const withFrontmatter = results.filter(r => r.fragmentMeta).length;
+    const withDeps = results.filter(r => r.fragmentMeta && r.fragmentMeta.depends_on.length > 0).length;
+    const withWikilinks = results.filter(r => r.stats.totalWikilinks > 0).length;
+    const withStatus = results.filter(r => r.fragmentMeta && r.fragmentMeta.status).length;
+    const withDescription = results.filter(r => r.fragmentMeta && r.fragmentMeta.description).length;
+    const withSource = results.filter(r => r.fragmentMeta && r.fragmentMeta.source).length;
+    const noTitle = results.filter(r => r.fragmentMeta && !r.fragmentMeta.title).length;
+    const issues = [];
+    for (const r of results) {
+        const fileIssues = [];
+        if (!r.fragmentMeta)
+            fileIssues.push('no_frontmatter');
+        else {
+            if (!r.fragmentMeta.title)
+                fileIssues.push('empty_title');
+            if (!r.fragmentMeta.source)
+                fileIssues.push('no_source');
+            if (r.fragmentMeta.depends_on.length === 0 && r.stats.totalWikilinks > 0)
+                fileIssues.push('wikilinks_no_depends_on');
+        }
+        if (fileIssues.length > 0)
+            issues.push({ file: r.fileName, issues: fileIssues });
+    }
+    return { total, withFrontmatter, withDeps, withWikilinks, withStatus, withDescription, withSource, noTitle, filesWithIssues: issues.length, issues };
+}
 function main() {
     const startTime = Date.now();
     const configPath = path.join(__dirname, 'hooks.toml');
@@ -304,9 +398,11 @@ Options:
   --filter <k=v>      Filter by metadata field
   --rank              Rank results by relevance
   --graph             Document relationship graph
+  --deps              Dependency graph (DAG order + levels)
   --orphans           Find unreferenced docs
   --backlinks <doc>   Find docs linking to <doc>
   --keypoints         Quick overview (single-shot)
+  --lint-fragments    Fragment health check
   --session           Token budget report
   --budget <n>        Set token budget limit
   --max-results <n>   Limit output
@@ -316,16 +412,12 @@ Examples:
   md-analyzer /path/to/docs --keypoints --json
   md-analyzer . --search "task" --rank --json
   md-analyzer . --session --budget 50000 --json
-  md-analyzer . --orphans --json`);
+  md-analyzer . --orphans --json
+  md-analyzer . --lint-fragments --json
+  md-analyzer . --deps --json`);
         process.exit(0);
     }
-    let cliDir = '';
-    for (let i = 2; i < process.argv.length; i++) {
-        if (!process.argv[i].startsWith('-')) {
-            cliDir = process.argv[i];
-            break;
-        }
-    }
+    const cliDir = getPositionalArg(2);
     const targetDir = cliDir || process.env['MD_ANALYZER_DEFAULT_DIR'] || config['default_directory'] || process.cwd();
     const jsonOnly = process.argv.includes('--json');
     const graphMode = process.argv.includes('--graph');
@@ -333,16 +425,13 @@ Examples:
     const rankMode = process.argv.includes('--rank');
     const sessionMode = process.argv.includes('--session');
     const keypointsMode = process.argv.includes('--keypoints');
-    const budgetIdx = process.argv.findIndex(arg => arg === '--budget');
-    const budget = budgetIdx > 0 ? parseInt(process.argv[budgetIdx + 1] || '', 10) || 100000 : 100000;
-    const maxResultsIdx = process.argv.findIndex(arg => arg === '--max-results');
-    const maxResults = maxResultsIdx > 0 ? parseInt(process.argv[maxResultsIdx + 1] || '', 10) || 0 : 0;
-    const backlinksIdx = process.argv.findIndex(arg => arg === '--backlinks');
-    const backlinksTarget = backlinksIdx > 0 ? process.argv[backlinksIdx + 1] || null : null;
-    const searchIdx = process.argv.findIndex(arg => arg === '--search');
-    const searchKeyword = searchIdx > 0 ? process.argv[searchIdx + 1] || null : null;
-    const filterIdx = process.argv.findIndex(arg => arg === '--filter');
-    const filterArg = filterIdx > 0 ? process.argv[filterIdx + 1] || null : null;
+    const depsMode = process.argv.includes('--deps');
+    const lintFragmentsMode = process.argv.includes('--lint-fragments');
+    const budget = parseInt(getFlagArg('--budget') || '', 10) || 100000;
+    const maxResults = parseInt(getFlagArg('--max-results') || '', 10) || 0;
+    const backlinksTarget = getFlagArg('--backlinks');
+    const searchKeyword = getFlagArg('--search');
+    const filterRaw = getFlagArg('--filter');
     const session = loadSession();
     if (!jsonOnly)
         console.log(`Scanning: ${targetDir}\n`);
@@ -358,8 +447,8 @@ Examples:
             results[0].stats.errors = [];
         results[0].stats.errors.push(...scanErrors);
     }
-    if (filterArg && filterArg.includes('=')) {
-        const [key, value] = filterArg.split('=');
+    if (filterRaw && filterRaw.includes('=')) {
+        const [key, value] = filterRaw.split('=');
         results = filterByMetadata(results, key, value);
         if (!jsonOnly)
             console.log(`Filtered by ${key}=${value}: ${results.length} results\n`);
@@ -387,6 +476,12 @@ Examples:
         console.log(JSON.stringify(getTokenBudgetReport(updatedSession, budget), null, 2));
     else if (keypointsMode)
         console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2));
+    else if (lintFragmentsMode)
+        console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2));
+    else if (depsMode) {
+        const graph = buildGraph(limitedResults);
+        console.log(JSON.stringify({ nodes: Object.keys(graph.nodes), edges: graph.edges, tokensThisCall }, null, 2));
+    }
     else if (orphansMode) {
         const orphans = findOrphans(buildGraph(limitedResults));
         console.log(JSON.stringify({ orphans, count: orphans.length, tokensThisCall }, null, 2));
@@ -406,7 +501,7 @@ Examples:
         console.log(JSON.stringify(limitedResults, null, 2));
     }
     const flags = process.argv.slice(2).filter(a => a.startsWith('--')).map(a => a.replace(/=.*/, ''));
-    const mode = sessionMode ? 'session' : keypointsMode ? 'keypoints' : orphansMode ? 'orphans' : backlinksTarget ? 'backlinks' : graphMode ? 'graph' : searchKeyword ? 'search' : 'default';
+    const mode = depsMode ? 'deps' : lintFragmentsMode ? 'lint-fragments' : sessionMode ? 'session' : keypointsMode ? 'keypoints' : orphansMode ? 'orphans' : backlinksTarget ? 'backlinks' : graphMode ? 'graph' : searchKeyword ? 'search' : 'default';
     writeRunLog({
         timestamp: new Date().toISOString(),
         sessionId: updatedSession.sessionId,

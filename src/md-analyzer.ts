@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { micromark } from 'micromark'
 import * as fs from 'fs'
 import * as path from 'path'
 import { encodingForModel } from 'js-tiktoken'
+import * as yaml from 'js-yaml'
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', '.svn', '.hg',
@@ -11,18 +11,33 @@ const SKIP_DIRS = new Set([
 ])
 
 interface Link { text: string; url: string; isInternal: boolean; fileName: string | null }
+interface Wikilink { target: string; display: string | null }
 interface Heading { level: number; text: string }
 interface Table { headers: string[]; rows: string[][] }
+interface FragmentMeta {
+  title: string
+  description: string | null
+  tags: string[]
+  depends_on: string[]
+  status: string | null
+  source: string | null
+  order: number | null
+  date_iso: string | null
+}
 interface Stats {
   totalHeadings: number; totalLinks: number; internalLinks: number; externalLinks: number
-  wordCount: number; charCount: number; lineCount: number; codeBlocks: number; tables: number; tokens: number; errors?: string[]
+  totalWikilinks: number; wordCount: number; charCount: number; lineCount: number
+  codeBlocks: number; tables: number; tokens: number; errors?: string[]
 }
 interface AnalysisResult {
-  file: string; fileName: string; metadata: Record<string, string> | null
-  headings: Heading[]; links: Link[]; tables: Table[]; stats: Stats
+  file: string; fileName: string
+  metadata: Record<string, string> | null
+  fragmentMeta: FragmentMeta | null
+  headings: Heading[]; links: Link[]; wikilinks: Wikilink[]; tables: Table[]
+  stats: Stats
 }
 interface GraphNode { inbound: string[]; outbound: string[] }
-interface Graph { nodes: Record<string, GraphNode>; edges: { source: string; target: string }[] }
+interface Graph { nodes: Record<string, GraphNode>; edges: { source: string; target: string; type: string }[] }
 interface SessionStats { sessionId: string; calls: number; totalTokens: number; filesProcessed: number; startTime: string }
 
 function getTomlConfig(tomlPath: string): Record<string, any> {
@@ -46,18 +61,17 @@ function getTomlConfig(tomlPath: string): Record<string, any> {
   } catch { return {} }
 }
 
-function extractFrontmatter(content: string): { metadata: Record<string, string> | null; content: string } {
+function extractFrontmatter(content: string): { metadata: Record<string, any> | null; content: string } {
   const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n/
   const match = content.match(frontmatterRegex)
   if (!match) return { metadata: null, content }
-  const metadata: Record<string, string> = {}
-  match[1].split('\n').forEach(line => {
-    const colonIndex = line.indexOf(':')
-    if (colonIndex > 0) {
-      metadata[line.substring(0, colonIndex).trim()] = line.substring(colonIndex + 1).trim()
-    }
-  })
-  return { metadata, content: content.substring(match[0].length) }
+  try {
+    const parsed = yaml.load(match[1])
+    const metadata = parsed && typeof parsed === 'object' ? parsed as Record<string, any> : null
+    return { metadata, content: content.substring(match[0].length) }
+  } catch {
+    return { metadata: null, content }
+  }
 }
 
 function extractHeadings(content: string): Heading[] {
@@ -85,6 +99,33 @@ function extractLinks(content: string): Link[] {
     links.push({ text: match[1].trim(), url, isInternal, fileName })
   }
   return links
+}
+
+function extractWikilinks(content: string): Wikilink[] {
+  const wikilinks: Wikilink[] = []
+  const wikiRegex = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
+  let match
+  while ((match = wikiRegex.exec(content)) !== null) {
+    wikilinks.push({ target: match[1].trim(), display: match[2]?.trim() || null })
+  }
+  return wikilinks
+}
+
+function extractFragmentMeta(metadata: Record<string, any> | null): FragmentMeta | null {
+  if (!metadata) return null
+  const dependsRaw = metadata.depends_on
+  const depends: string[] = Array.isArray(dependsRaw) ? dependsRaw.map(String) : (typeof dependsRaw === 'string' ? [dependsRaw] : [])
+  const tags: string[] = Array.isArray(metadata.tags) ? metadata.tags.map(String) : (typeof metadata.tags === 'string' ? [metadata.tags] : [])
+  return {
+    title: String(metadata.title || ''),
+    description: metadata.description ? String(metadata.description) : null,
+    tags,
+    depends_on: depends,
+    status: metadata.status ? String(metadata.status) : null,
+    source: metadata.source ? String(metadata.source) : null,
+    order: metadata.order != null ? Number(metadata.order) : null,
+    date_iso: metadata.date_iso ? String(metadata.date_iso) : null,
+  }
 }
 
 function extractTables(content: string): Table[] {
@@ -138,42 +179,59 @@ function analyzeFile(filePath: string): AnalysisResult {
   try { content = fs.readFileSync(filePath, 'utf-8') }
   catch (e) {
     errors.push(`file_read_error: ${e instanceof Error ? e.message : 'unknown'}`)
-    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, headings: [], links: [], tables: [],
-      stats: { totalHeadings: 0, totalLinks: 0, internalLinks: 0, externalLinks: 0, wordCount: 0, charCount: 0, lineCount: 0, codeBlocks: 0, tables: 0, tokens: 0, errors } }
+    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, fragmentMeta: null, headings: [], links: [], wikilinks: [], tables: [],
+      stats: { totalHeadings: 0, totalLinks: 0, internalLinks: 0, externalLinks: 0, totalWikilinks: 0, wordCount: 0, charCount: 0, lineCount: 0, codeBlocks: 0, tables: 0, tokens: 0, errors } }
   }
   const { metadata, content: markdownContent } = extractFrontmatter(content)
+  const fragmentMeta = extractFragmentMeta(metadata)
   const headings = extractHeadings(markdownContent)
   const links = extractLinks(markdownContent)
+  const wikilinks = extractWikilinks(markdownContent)
   const tables = extractTables(markdownContent)
   const counts = countStats(markdownContent)
   if (counts.tokens === 0) errors.push('token_count_fallback: tiktoken unavailable')
-  return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, headings, links, tables,
+  return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, fragmentMeta, headings, links, wikilinks, tables,
     stats: { totalHeadings: headings.length, totalLinks: links.length, internalLinks: links.filter(l => l.isInternal).length,
-      externalLinks: links.filter(l => !l.isInternal).length, wordCount: counts.wordCount, charCount: counts.charCount,
-      lineCount: counts.lineCount, codeBlocks: counts.codeBlocks, tables: tables.length, tokens: counts.tokens,
-      errors: errors.length > 0 ? errors : undefined } }
+      externalLinks: links.filter(l => !l.isInternal).length, totalWikilinks: wikilinks.length, wordCount: counts.wordCount,
+      charCount: counts.charCount, lineCount: counts.lineCount, codeBlocks: counts.codeBlocks, tables: tables.length,
+      tokens: counts.tokens, errors: errors.length > 0 ? errors : undefined } }
+}
+
+function addEdge(graph: Record<string, GraphNode>, edges: { source: string; target: string; type: string }[], source: string, target: string, type: string): void {
+  if (!graph[source]) graph[source] = { inbound: [], outbound: [] }
+  if (!graph[target]) graph[target] = { inbound: [], outbound: [] }
+  if (!graph[source].outbound.includes(target)) graph[source].outbound.push(target)
+  if (!graph[target].inbound.includes(source)) graph[target].inbound.push(source)
+  edges.push({ source, target, type })
 }
 
 function buildGraph(results: AnalysisResult[]): Graph {
-  const graph: Record<string, GraphNode> = {}, edges: { source: string; target: string }[] = []
+  const graph: Record<string, GraphNode> = {}, edges: { source: string; target: string; type: string }[] = []
   results.forEach(doc => {
     const source = doc.fileName
     if (!graph[source]) graph[source] = { inbound: [], outbound: [] }
     doc.links.forEach(link => {
-      if (link.isInternal && link.fileName) {
-        const target = link.fileName
-        if (!graph[target]) graph[target] = { inbound: [], outbound: [] }
-        if (!graph[source].outbound.includes(target)) graph[source].outbound.push(target)
-        if (!graph[target].inbound.includes(source)) graph[target].inbound.push(source)
-        edges.push({ source, target })
-      }
+      if (link.isInternal && link.fileName) addEdge(graph, edges, source, link.fileName, 'link')
     })
+    doc.wikilinks.forEach(w => {
+      const slug = w.target.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      if (slug !== source && results.some(r => r.fileName === slug)) addEdge(graph, edges, source, slug, 'wikilink')
+    })
+    if (doc.fragmentMeta) {
+      doc.fragmentMeta.depends_on.forEach(dep => {
+        const depName = dep.replace(/\.md$/, '')
+        if (depName !== source && results.some(r => r.fileName === depName)) addEdge(graph, edges, source, depName, 'depends_on')
+      })
+    }
   })
   return { nodes: graph, edges }
 }
 
-function findOrphans(graph: Graph): string[] {
-  return Object.keys(graph.nodes).filter(node => graph.nodes[node].inbound.length === 0 && graph.nodes[node].outbound.length === 0)
+function findOrphans(graph: Graph, excludeOrphansWithDeps?: Set<string>): string[] {
+  return Object.keys(graph.nodes).filter(node => {
+    if (excludeOrphansWithDeps?.has(node)) return false
+    return graph.nodes[node].inbound.length === 0 && graph.nodes[node].outbound.length === 0
+  })
 }
 
 function findBacklinks(results: AnalysisResult[], targetFileName: string): string[] {
@@ -184,17 +242,24 @@ function findBacklinks(results: AnalysisResult[], targetFileName: string): strin
         backlinks.push(doc.fileName)
       }
     })
+    doc.wikilinks.forEach(w => {
+      const slug = w.target.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      if (slug === targetFileName && !backlinks.includes(doc.fileName)) backlinks.push(doc.fileName)
+    })
   })
   return backlinks
 }
 
 function searchContent(results: AnalysisResult[], keyword: string): AnalysisResult[] {
   const kw = keyword.toLowerCase()
-  return results.filter(doc => fs.readFileSync(doc.file, 'utf-8').toLowerCase().includes(kw))
+  return results.filter(doc => {
+    const content = fs.readFileSync(doc.file, 'utf-8').toLowerCase()
+    return content.includes(kw)
+  })
 }
 
 function filterByMetadata(results: AnalysisResult[], key: string, value: string): AnalysisResult[] {
-  return results.filter(doc => doc.metadata && doc.metadata[key] === value)
+  return results.filter(doc => doc.metadata && String(doc.metadata[key] || '') === value)
 }
 
 function rankByRelevance(results: AnalysisResult[], keyword: string): AnalysisResult[] {
@@ -208,7 +273,7 @@ function rankByRelevance(results: AnalysisResult[], keyword: string): AnalysisRe
 
 function extractKeyPoints(doc: AnalysisResult): object {
   return { fileName: doc.fileName, title: doc.headings[0]?.text || doc.fileName, level: doc.headings[0]?.level || 1,
-    summary: { totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount },
+    summary: { totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalWikilinks: doc.stats.totalWikilinks, totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount },
     keyHeadings: doc.headings.slice(0, 5).map(h => ({ level: h.level, text: h.text })),
     importantLinks: doc.links.filter(l => !l.isInternal).slice(0, 3).map(l => ({ text: l.text, url: l.url })),
     internalReferences: doc.links.filter(l => l.isInternal && l.fileName).slice(0, 5).map(l => l.fileName),
@@ -262,11 +327,46 @@ function writeRunLog(log: RunLog): void {
   } catch {}
 }
 
+function getPositionalArg(start: number): string {
+  for (let i = start; i < process.argv.length; i++) {
+    if (!process.argv[i].startsWith('-')) return process.argv[i]
+  }
+  return ''
+}
+
+function getFlagArg(flag: string): string | null {
+  const idx = process.argv.indexOf(flag)
+  return idx > 0 && idx + 1 < process.argv.length ? process.argv[idx + 1] : null
+}
+
+function getFragmentHealth(results: AnalysisResult[]): object {
+  const total = results.length
+  const withFrontmatter = results.filter(r => r.fragmentMeta).length
+  const withDeps = results.filter(r => r.fragmentMeta && r.fragmentMeta.depends_on.length > 0).length
+  const withWikilinks = results.filter(r => r.stats.totalWikilinks > 0).length
+  const withStatus = results.filter(r => r.fragmentMeta && r.fragmentMeta.status).length
+  const withDescription = results.filter(r => r.fragmentMeta && r.fragmentMeta.description).length
+  const withSource = results.filter(r => r.fragmentMeta && r.fragmentMeta.source).length
+  const noTitle = results.filter(r => r.fragmentMeta && !r.fragmentMeta.title).length
+  const issues: { file: string; issues: string[] }[] = []
+  for (const r of results) {
+    const fileIssues: string[] = []
+    if (!r.fragmentMeta) fileIssues.push('no_frontmatter')
+    else {
+      if (!r.fragmentMeta.title) fileIssues.push('empty_title')
+      if (!r.fragmentMeta.source) fileIssues.push('no_source')
+      if (r.fragmentMeta.depends_on.length === 0 && r.stats.totalWikilinks > 0) fileIssues.push('wikilinks_no_depends_on')
+    }
+    if (fileIssues.length > 0) issues.push({ file: r.fileName, issues: fileIssues })
+  }
+  return { total, withFrontmatter, withDeps, withWikilinks, withStatus, withDescription, withSource, noTitle, filesWithIssues: issues.length, issues }
+}
+
 function main(): void {
   const startTime = Date.now()
   const configPath = path.join(__dirname, 'hooks.toml')
   const config = getTomlConfig(configPath)
-  
+
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log(`md-analyzer - Markdown document analyzer for AI agents
 
@@ -278,9 +378,11 @@ Options:
   --filter <k=v>      Filter by metadata field
   --rank              Rank results by relevance
   --graph             Document relationship graph
+  --deps              Dependency graph (DAG order + levels)
   --orphans           Find unreferenced docs
   --backlinks <doc>   Find docs linking to <doc>
   --keypoints         Quick overview (single-shot)
+  --lint-fragments    Fragment health check
   --session           Token budget report
   --budget <n>        Set token budget limit
   --max-results <n>   Limit output
@@ -290,15 +392,13 @@ Examples:
   md-analyzer /path/to/docs --keypoints --json
   md-analyzer . --search "task" --rank --json
   md-analyzer . --session --budget 50000 --json
-  md-analyzer . --orphans --json`)
+  md-analyzer . --orphans --json
+  md-analyzer . --lint-fragments --json
+  md-analyzer . --deps --json`)
     process.exit(0)
   }
-  
-  let cliDir = ''
-  for (let i = 2; i < process.argv.length; i++) {
-    if (!process.argv[i].startsWith('-')) { cliDir = process.argv[i]; break }
-  }
-  
+
+  const cliDir = getPositionalArg(2)
   const targetDir = cliDir || process.env['MD_ANALYZER_DEFAULT_DIR'] || config['default_directory'] || process.cwd()
   const jsonOnly = process.argv.includes('--json')
   const graphMode = process.argv.includes('--graph')
@@ -306,21 +406,14 @@ Examples:
   const rankMode = process.argv.includes('--rank')
   const sessionMode = process.argv.includes('--session')
   const keypointsMode = process.argv.includes('--keypoints')
-  
-  const budgetIdx = process.argv.findIndex(arg => arg === '--budget')
-  const budget = budgetIdx > 0 ? parseInt(process.argv[budgetIdx + 1] || '', 10) || 100000 : 100000
-  
-  const maxResultsIdx = process.argv.findIndex(arg => arg === '--max-results')
-  const maxResults = maxResultsIdx > 0 ? parseInt(process.argv[maxResultsIdx + 1] || '', 10) || 0 : 0
-  
-  const backlinksIdx = process.argv.findIndex(arg => arg === '--backlinks')
-  const backlinksTarget = backlinksIdx > 0 ? process.argv[backlinksIdx + 1] || null : null
-  
-  const searchIdx = process.argv.findIndex(arg => arg === '--search')
-  const searchKeyword = searchIdx > 0 ? process.argv[searchIdx + 1] || null : null
-  
-  const filterIdx = process.argv.findIndex(arg => arg === '--filter')
-  const filterArg = filterIdx > 0 ? process.argv[filterIdx + 1] || null : null
+
+  const depsMode = process.argv.includes('--deps')
+  const lintFragmentsMode = process.argv.includes('--lint-fragments')
+  const budget = parseInt(getFlagArg('--budget') || '', 10) || 100000
+  const maxResults = parseInt(getFlagArg('--max-results') || '', 10) || 0
+  const backlinksTarget = getFlagArg('--backlinks')
+  const searchKeyword = getFlagArg('--search')
+  const filterRaw = getFlagArg('--filter')
 
   const session = loadSession()
   if (!jsonOnly) console.log(`Scanning: ${targetDir}\n`)
@@ -331,8 +424,8 @@ Examples:
   let results = mdFiles.map(file => analyzeFile(file))
   if (scanErrors.length > 0 && results.length > 0) { if (!results[0].stats.errors) results[0].stats.errors = []; results[0].stats.errors.push(...scanErrors) }
 
-  if (filterArg && filterArg.includes('=')) {
-    const [key, value] = filterArg.split('=')
+  if (filterRaw && filterRaw.includes('=')) {
+    const [key, value] = filterRaw.split('=')
     results = filterByMetadata(results, key, value)
     if (!jsonOnly) console.log(`Filtered by ${key}=${value}: ${results.length} results\n`)
   }
@@ -359,13 +452,15 @@ Examples:
 
   if (sessionMode) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, budget), null, 2))
   else if (keypointsMode) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
+  else if (lintFragmentsMode) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
+  else if (depsMode) { const graph = buildGraph(limitedResults); console.log(JSON.stringify({ nodes: Object.keys(graph.nodes), edges: graph.edges, tokensThisCall }, null, 2)) }
   else if (orphansMode) { const orphans = findOrphans(buildGraph(limitedResults)); console.log(JSON.stringify({ orphans, count: orphans.length, tokensThisCall }, null, 2)) }
   else if (backlinksTarget) { const backlinks = findBacklinks(limitedResults, backlinksTarget); console.log(JSON.stringify({ target: backlinksTarget, backlinks, count: backlinks.length, tokensThisCall }, null, 2)) }
   else if (graphMode) console.log(JSON.stringify(buildGraph(limitedResults), null, 2))
   else { if (!jsonOnly) { console.log(`\nTokens this call: ${tokensThisCall}`); console.log(`Total session tokens: ${updatedSession.totalTokens}\n`) }; console.log(JSON.stringify(limitedResults, null, 2)) }
 
   const flags = process.argv.slice(2).filter(a => a.startsWith('--')).map(a => a.replace(/=.*/, ''))
-  const mode = sessionMode ? 'session' : keypointsMode ? 'keypoints' : orphansMode ? 'orphans' : backlinksTarget ? 'backlinks' : graphMode ? 'graph' : searchKeyword ? 'search' : 'default'
+  const mode = depsMode ? 'deps' : lintFragmentsMode ? 'lint-fragments' : sessionMode ? 'session' : keypointsMode ? 'keypoints' : orphansMode ? 'orphans' : backlinksTarget ? 'backlinks' : graphMode ? 'graph' : searchKeyword ? 'search' : 'default'
   writeRunLog({
     timestamp: new Date().toISOString(),
     sessionId: updatedSession.sessionId,

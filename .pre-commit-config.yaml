@@ -1,0 +1,44 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: md-analyzer-typecheck
+        name: md-analyzer typecheck
+        entry: bash -c 'cd md-analyzer && npx tsc --noEmit --project tsconfig.json'
+        language: system
+        files: ^md-analyzer/
+        types: [text]
+        pass_filenames: false
+
+      - id: md-analyzer-lint
+        name: md-analyzer lint
+        entry: bash -c 'cd md-analyzer && npx eslint src/'
+        language: system
+        files: ^md-analyzer/
+        types: [text]
+        pass_filenames: false
+
+      - id: md-fabrication-typecheck
+        name: md-fabrication typecheck
+        entry: bash -c 'cd md-fabrication && npx tsc --noEmit --project tsconfig.json'
+        language: system
+        files: ^md-fabrication/
+        types: [text]
+        pass_filenames: false
+
+      - id: md-fabrication-lint
+        name: md-fabrication lint
+        entry: bash -c 'cd md-fabrication && npx eslint src/'
+        language: system
+        files: ^md-fabrication/
+        types: [text]
+        pass_filenames: false
