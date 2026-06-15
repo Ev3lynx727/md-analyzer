@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.4] - 2026-06-15
+
+### Added
+
+- `keyHeadings` now includes `line` (1-indexed body position) and `tokens` (per-section token count) — matches Python pre_read.py fallback format
+- `sections` field on `AnalysisResult` — pre-computed section-level token estimates during scan
+- Output expanded from 5 to 10 headings in keypoints
+
+### Changed
+
+- Version bump from 0.1.3 to 0.1.4
+- `Heading` interface now carries `line: number`
+- README: added `--keypoints` JSON output example, `--deps` and `--lint-fragments` flags, pre_read.py hook integration, condensed plugins section, fixed priority chain default
+
 ## [0.1.3] - 2026-06-08
 
 ### Added

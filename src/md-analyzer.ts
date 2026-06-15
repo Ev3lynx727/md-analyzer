@@ -12,7 +12,7 @@ const SKIP_DIRS = new Set([
 
 interface Link { text: string; url: string; isInternal: boolean; fileName: string | null }
 interface Wikilink { target: string; display: string | null }
-interface Heading { level: number; text: string }
+interface Heading { level: number; text: string; line: number }
 interface Table { headers: string[]; rows: string[][] }
 interface FragmentMeta {
   title: string
@@ -29,11 +29,14 @@ interface Stats {
   totalWikilinks: number; wordCount: number; charCount: number; lineCount: number
   codeBlocks: number; tables: number; tokens: number; errors?: string[]
 }
+interface SectionInfo { line: number; tokens: number }
+
 interface AnalysisResult {
   file: string; fileName: string
   metadata: Record<string, string> | null
   fragmentMeta: FragmentMeta | null
-  headings: Heading[]; links: Link[]; wikilinks: Wikilink[]; tables: Table[]
+  headings: Heading[]; sections: SectionInfo[]
+  links: Link[]; wikilinks: Wikilink[]; tables: Table[]
   stats: Stats
 }
 interface GraphNode { inbound: string[]; outbound: string[] }
@@ -79,7 +82,8 @@ function extractHeadings(content: string): Heading[] {
   const headingRegex = /^(#{1,6})\s+(.+)$/gm
   let match
   while ((match = headingRegex.exec(content)) !== null) {
-    headings.push({ level: match[1].length, text: match[2].trim() })
+    const line = content.substring(0, match.index).split('\n').length
+    headings.push({ level: match[1].length, text: match[2].trim(), line })
   }
   return headings
 }
@@ -179,7 +183,7 @@ function analyzeFile(filePath: string): AnalysisResult {
   try { content = fs.readFileSync(filePath, 'utf-8') }
   catch (e) {
     errors.push(`file_read_error: ${e instanceof Error ? e.message : 'unknown'}`)
-    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, fragmentMeta: null, headings: [], links: [], wikilinks: [], tables: [],
+    return { file: filePath, fileName: path.basename(filePath, '.md'), metadata: null, fragmentMeta: null, headings: [], sections: [], links: [], wikilinks: [], tables: [],
       stats: { totalHeadings: 0, totalLinks: 0, internalLinks: 0, externalLinks: 0, totalWikilinks: 0, wordCount: 0, charCount: 0, lineCount: 0, codeBlocks: 0, tables: 0, tokens: 0, errors } }
   }
   const { metadata, content: markdownContent } = extractFrontmatter(content)
@@ -190,7 +194,19 @@ function analyzeFile(filePath: string): AnalysisResult {
   const tables = extractTables(markdownContent)
   const counts = countStats(markdownContent)
   if (counts.tokens === 0) errors.push('token_count_fallback: tiktoken unavailable')
-  return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, fragmentMeta, headings, links, wikilinks, tables,
+
+  const bodyLines = markdownContent.split('\n')
+  const sections = headings.map((h, i) => {
+    const startIdx = h.line - 1
+    const endIdx = i + 1 < headings.length ? headings[i + 1].line - 1 : bodyLines.length
+    const sectionText = bodyLines.slice(startIdx, endIdx).join('\n')
+    let tokens = 0
+    try { tokens = encodingForModel('gpt-4').encode(sectionText).length }
+    catch { tokens = Math.ceil(sectionText.length / 4) }
+    return { line: h.line, tokens }
+  })
+
+  return { file: filePath, fileName: path.basename(filePath, '.md'), metadata, fragmentMeta, headings, sections, links, wikilinks, tables,
     stats: { totalHeadings: headings.length, totalLinks: links.length, internalLinks: links.filter(l => l.isInternal).length,
       externalLinks: links.filter(l => !l.isInternal).length, totalWikilinks: wikilinks.length, wordCount: counts.wordCount,
       charCount: counts.charCount, lineCount: counts.lineCount, codeBlocks: counts.codeBlocks, tables: tables.length,
@@ -274,7 +290,10 @@ function rankByRelevance(results: AnalysisResult[], keyword: string): AnalysisRe
 function extractKeyPoints(doc: AnalysisResult): object {
   return { fileName: doc.fileName, title: doc.headings[0]?.text || doc.fileName, level: doc.headings[0]?.level || 1,
     summary: { totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalWikilinks: doc.stats.totalWikilinks, totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount },
-    keyHeadings: doc.headings.slice(0, 5).map(h => ({ level: h.level, text: h.text })),
+    keyHeadings: doc.headings.slice(0, 10).map((h, i) => ({
+      level: h.level, text: h.text, line: h.line,
+      tokens: doc.sections?.[i]?.tokens ?? 0
+    })),
     importantLinks: doc.links.filter(l => !l.isInternal).slice(0, 3).map(l => ({ text: l.text, url: l.url })),
     internalReferences: doc.links.filter(l => l.isInternal && l.fileName).slice(0, 5).map(l => l.fileName),
     metadata: doc.metadata, readingTime: Math.ceil(doc.stats.wordCount / 200) + ' min' }
