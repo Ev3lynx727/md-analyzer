@@ -405,6 +405,7 @@ Options:
   --session           Token budget report
   --budget <n>        Set token budget limit
   --max-results <n>   Limit output
+  --version, -v       Show version number
   --help, -h          Show this help message
 
 Examples:
@@ -414,6 +415,12 @@ Examples:
   md-analyzer . --orphans --json
   md-analyzer . --lint-fragments --json
   md-analyzer . --deps --json`)
+    process.exit(0)
+  }
+
+  if (process.argv.includes('--version') || process.argv.includes('-v')) {
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'))
+    console.log(pkg.version)
     process.exit(0)
   }
 

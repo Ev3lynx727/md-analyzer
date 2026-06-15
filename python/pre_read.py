@@ -57,8 +57,21 @@ def extract_headings(text: str) -> list[tuple[int, str, int]]:
         for m in re.finditer(r"^(#{1,3}) (.+)$", text, re.MULTILINE)
     ]
 
+def _get_tiktoken_enc():
+    try:
+        import tiktoken
+        return tiktoken.encoding_for_model("gpt-4")
+    except Exception:
+        return None
+
+_TIKTOKEN_ENC = _get_tiktoken_enc()
+
 def estimate_tokens(text: str) -> int:
-    """Fast approximation: chars / 4 (no tiktoken dependency)."""
+    if _TIKTOKEN_ENC:
+        try:
+            return max(1, len(_TIKTOKEN_ENC.encode(text)))
+        except Exception:
+            pass
     return max(1, len(text) // 4)
 
 def _section_bounds(
