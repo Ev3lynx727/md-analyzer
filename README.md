@@ -2,7 +2,7 @@
 
 > Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points from `.md` files.
 
-**md-analyzer** is a lightweight, agent-ready document analysis tool designed for AI workflows. It provides single-shot document overviews, token budget tracking, and document relationship graphs — perfect for OpenCode, Hermes, OpenClaw, or any AI agent framework.
+**md-analyzer** is a lightweight, agent-ready document analysis tool designed for AI workflows. It provides single-shot document overviews, token budget tracking, and document relationship graphs — perfect for OpenCode, kiro-cli, or any AI agent framework.
 
 ---
 
@@ -21,11 +21,11 @@
 - **Agent-native** — Designed for AI agent workflows with single-shot outputs
 - **Token-safe** — Built-in limits prevent context blowout (default: 20 results)
 - **Extensible** — Simple TypeScript source, easy to extend for plugins
-- **Zero deps** — Runtime TOML parser, no external config dependencies
+- **Zero config** — Runtime TOML parser, no config file required
 
 ---
 
-## Pre-Requirements
+## Prerequisites
 
 ### System Requirements
 
@@ -101,9 +101,11 @@ node md-analyzer.js <directory> [options]
 | `--filter <k=v>` | Filter by metadata field | `--filter "category=guides"` |
 | `--rank` | Rank results by relevance | `--search "task" --rank` |
 | `--graph` | Document relationship graph | `--graph` |
+| `--deps` | Dependency graph (DAG order) | `--deps` |
 | `--orphans` | Find unreferenced docs | `--orphans` |
 | `--backlinks <doc>` | Find docs linking to `<doc>` | `--backlinks "adr-2026-01"` |
 | `--keypoints` | Quick overview (single-shot) | `--keypoints` |
+| `--lint-fragments` | Frontmatter health check | `--lint-fragments` |
 | `--session` | Token budget report | `--session` |
 | `--budget <n>` | Set token budget limit | `--budget 50000` |
 | `--max-results <n>` | Limit output | `--max-results 10` |
@@ -125,94 +127,81 @@ md-analyzer . --session --budget 100000 --json
 
 # Find orphans
 md-analyzer . --orphans --json
+
+# Lint frontmatter
+md-analyzer . --lint-fragments --json
 ```
+
+### --keypoints JSON output
+
+```json
+[
+  {
+    "fileName": "adr-2026-04",
+    "title": "ADR-2026-04: Configuration Management",
+    "summary": {
+      "totalHeadings": 5,
+      "totalLinks": 3,
+      "totalWikilinks": 1,
+      "totalTokens": 1200,
+      "wordCount": 850
+    },
+    "keyHeadings": [
+      { "level": 1, "text": "ADR-2026-04: Configuration Management", "line": 1, "tokens": 320 },
+      { "level": 2, "text": "Status", "line": 4, "tokens": 85 },
+      { "level": 2, "text": "Context", "line": 8, "tokens": 410 },
+      { "level": 2, "text": "Decision", "line": 22, "tokens": 290 },
+      { "level": 2, "text": "Consequences", "line": 35, "tokens": 95 }
+    ],
+    "importantLinks": [
+      { "text": "Memory FAQ", "url": "https://help.openai.com/..." }
+    ],
+    "internalReferences": ["adr-2026-01", "adr-2026-02"],
+    "readingTime": "4 min"
+  }
+]
+```
+
+### Agent hook integration (pre-read)
+
+The `--keypoints` output powers a pre-read hook for OpenAI-compatible agents (opencode, kiro-cli). Before reading a file, the hook injects the structured overview so the LLM can decide what to read.
+
+```json
+// opencode.json / kiro-cli hook config
+{
+  "preToolUse": [
+    {
+      "matcher": { "tool_name": "read" },
+      "command": "uv run --project ~/.kiro/hooks python ~/.kiro/hooks/pre_read_md.py"
+    }
+  ]
+}
+```
+
+See [`python/pre_read.py`](./python/README.md) for the full hook implementation.
 
 ---
 
-## Building Extensions & Plugins
+## Calling from code
 
-md-analyzer is designed to be extended. Here's how to build plugins for different frameworks.
-
-### 1. As CLI Tool (OpenCode, Hermes, etc.)
-
-```bash
-# In your agent config
-tools:
-  - name: md-analyzer
-    command: md-analyzer
-    args: ["{{directory}}", "--keypoints", "--json"]
-```
-
-### 2. As Node.js Module
+md-analyzer is a CLI tool — integrate via subprocess:
 
 ```javascript
+// Node.js
 const { execSync } = require('child_process');
-
-function analyzeDocs(directory, options = {}) {
-  const args = ['md-analyzer.js', directory, '--json'];
-  if (options.keypoints) args.push('--keypoints');
-  if (options.search) args.push('--search', options.search);
-
-  const result = execSync(`node ${args.join(' ')}`, { encoding: 'utf-8' });
-  return JSON.parse(result);
-}
-
-// Usage
-const docs = analyzeDocs('./docs', { keypoints: true });
+const result = execSync('md-analyzer ./docs --keypoints --json', { encoding: 'utf-8' });
+const docs = JSON.parse(result);
 ```
-
-### 3. As Python Module (LangGraph)
 
 ```python
-import subprocess
-import json
-
-def run_md_analyzer(directory, **kwargs):
-    args = ["node", "md-analyzer.js", directory, "--json"]
-    for key, value in kwargs.items():
-        if value is True:
-            args.append(f"--{key}")
-        elif value:
-            args.extend([f"--{key}", str(value)])
-
-    result = subprocess.run(args, capture_output=True, text=True)
-    return json.loads(result.stdout)
-
-# Usage
-docs = run_md_analyzer("./docs", keypoints=True)
+# Python
+import subprocess, json
+result = subprocess.run(["md-analyzer", "./docs", "--keypoints", "--json"],
+    capture_output=True, text=True)
+docs = json.loads(result.stdout)
 ```
 
-### 4. Create Custom Wrapper
-
-```typescript
-// src/plugins/my-plugin.ts
-import { analyzeFile, extractKeyPoints } from '../md-analyzer';
-
-interface MyPluginOptions {
-  directory: string
-  customField?: string
-}
-
-export function myPlugin(options: MyPluginOptions) {
-  const results = scanMarkdownFiles(options.directory);
-  const analyzed = results.map(analyzeFile);
-
-  // Custom processing
-  return analyzed.map(doc => ({
-    ...extractKeyPoints(doc),
-    customField: options.customField
-  }));
-}
-```
-
-### 5. Hook into Session Events
-
-```typescript
-// Track token usage across plugin calls
-const session = loadSession();
-console.log(`Total tokens: ${session.totalTokens}`);
-console.log(`Calls: ${session.calls}`);
-```
+For agent hooks, see the [pre-read integration](#agent-hook-integration-pre-read) section above.
 
 ---
 
@@ -230,7 +219,7 @@ default_budget = 100000
 max_tokens = 200000
 
 # Output safety (prevent token blowout)
-max_results_default = 20
+max_results_default = 0
 ```
 
 ### Environment Variables
@@ -250,9 +239,9 @@ CLI --max-results 3
   ↓
 MD_ANALYZER_MAX_RESULTS=5
   ↓
-max_results_default=20 (hooks.toml)
+max_results_default=0 (hooks.toml, default: no limit)
   ↓
-0 (no limit)
+0 (no limit — raw results)
 ```
 
 ---
@@ -302,10 +291,15 @@ Location: `{project}/log/{sessionId}.json`
 ```
 md-analyzer/
 ├── src/
-│   └── md-analyzer.ts      # Main source (TypeScript)
+│   └── md-analyzer.ts      # TypeScript source
 ├── md-analyzer.js          # Compiled output
+├── md-analyzer.d.ts        # Type declarations
 ├── hooks.toml              # Configuration
-└── log/                    # Run logs
+├── log/                    # Run logs
+├── python/                 # Agent hook integration
+│   ├── pre_read.py
+│   └── README.md
+└── embedded-docs/          # Sample documents for testing
 ```
 
 ### Key Functions
