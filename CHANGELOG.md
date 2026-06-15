@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.5] - 2026-06-15
+
+### Added
+
+- `--version` / `-v` flag prints version number and exits immediately
+
+### Fixed
+
+- `--version` no longer falls through to scan all files in CWD
+
 ## [0.1.4] - 2026-06-15
 
 ### Added
