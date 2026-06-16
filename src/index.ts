@@ -6,7 +6,10 @@ export { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } fr
 export { countStats } from './core/counters.js'
 export { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractWikilinks, extractTables } from './core/extractors.js'
 
+export { CliOptions, AnalyzerConfigSchema } from './core/schema.js'
+export type { AnalyzerConfig } from './core/schema.js'
+
 export type {
   Link, Wikilink, Heading, Table, FragmentMeta, Stats, SectionInfo,
-  AnalysisResult, GraphNode, Graph, SessionStats, RunLog, AnalyzerConfig
+  AnalysisResult, GraphNode, Graph, SessionStats, RunLog
 } from './types/index.js'

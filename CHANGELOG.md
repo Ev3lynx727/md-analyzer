@@ -7,6 +7,8 @@
 - **Monolith decomposed** — single `src/md-analyzer.ts` (505 lines) refactored into 12 modular files under `src/{cli,core,types,utils}/` with clean barrel export at `src/index.ts`
 - **Build output moved to `dist/`** — compiled JS/DTS/MAP no longer pollute the repo root
 - **`package.json`** — `main` → `dist/index.js`, `types` → `dist/index.d.ts`, `bin` → `dist/cli/index.js`
+- **CLI rewritten with Commander.js** — replaced 509 lines of manual `process.argv` parsing with declarative Commander program; `--help`/`--version` auto-generated; `.action()` handler dispatches to core modules
+- **Zod runtime validation** — shared schema (`src/core/schema.ts`) validates CLI args and config shape; `CliOptions` barrel-exported for both runtime and type inference in downstream consumers
 
 ### Fixed
 
