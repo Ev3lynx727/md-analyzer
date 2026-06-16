@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.6] - 2026-06-16
+
+### Changed
+
+- **Monolith decomposed** — single `src/md-analyzer.ts` (505 lines) refactored into 12 modular files under `src/{cli,core,types,utils}/` with clean barrel export at `src/index.ts`
+- **Build output moved to `dist/`** — compiled JS/DTS/MAP no longer pollute the repo root
+- **`package.json`** — `main` → `dist/index.js`, `types` → `dist/index.d.ts`, `bin` → `dist/cli/index.js`
+
+### Fixed
+
+- **0 `any` types** — all `Record<string, any>` → `Record<string, unknown>`, all `catch (e: any)` → `catch (e: unknown)`
+- **0 empty catch blocks** — every `catch {}` logs with `console.error`
+- **Config drift** — `getTomlConfig` now reads `default_budget`, `max_tokens`, `max_results_default`, `session_file` from hooks.toml (previously ignored `max_tokens` and `max_results_default`)
+- **Input validation** — unknown CLI flags produce warnings
+- **`.gitignore`** — excludes root-level `md-analyzer.js`, `md-analyzer.d.ts`, `md-analyzer.js.map`
+
 ## [0.1.5] - 2026-06-15
 
 ### Added

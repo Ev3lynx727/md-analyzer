@@ -9,6 +9,11 @@ node_modules/
 dist/
 build/
 
+# Root-level compiled output (legacy — replaced by dist/)
+md-analyzer.js
+md-analyzer.d.ts
+md-analyzer.js.map
+
 # Python
 __pycache__/
 *.pyc

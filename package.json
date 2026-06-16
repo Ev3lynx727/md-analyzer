@@ -2,9 +2,10 @@
   "name": "@ev3lynx/md-analyzer",
   "version": "0.1.5",
   "description": "Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points",
-  "main": "md-analyzer.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
-    "md-analyzer": "md-analyzer.js"
+    "md-analyzer": "dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
@@ -12,7 +13,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "prepublish": "npm run build",
-    "test": "node md-analyzer.js . --json"
+    "test": "node dist/cli/index.js . --json"
   },
   "keywords": [
     "markdown",
@@ -50,7 +51,7 @@
     "typescript-eslint": "^8.60.1"
   },
   "files": [
-    "md-analyzer.js",
+    "dist/",
     "src/",
     "hooks.toml",
     "config.yaml",
