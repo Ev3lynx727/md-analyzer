@@ -1,38 +1,77 @@
 #!/usr/bin/env node
+import { Command } from 'commander'
 import * as path from 'path'
 import * as fs from 'fs'
+import { z } from 'zod'
+import { CliOptions } from '../core/schema.js'
 import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
 import { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } from '../core/session.js'
-import { parseFlags, showHelp } from './args.js'
 import { extractKeyPoints, writeRunLog } from './output.js'
 
-function main(): void {
+const pkgVersion: string = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf-8')
+).version
+
+const program = new Command()
+
+program
+  .name('md-analyzer')
+  .description('Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points from .md files')
+  .version(pkgVersion, '--version, -v', 'Show version number')
+  .arguments('[directory]')
+  .option('--json', 'Output as JSON')
+  .option('--search <kw>', 'Search keyword in content')
+  .option('--filter <k=v>', 'Filter by metadata field')
+  .option('--rank', 'Rank results by relevance')
+  .option('--graph', 'Document relationship graph')
+  .option('--deps', 'Dependency graph (DAG order + levels)')
+  .option('--orphans', 'Find unreferenced docs')
+  .option('--backlinks <doc>', 'Find docs linking to <doc>')
+  .option('--keypoints', 'Quick overview (single-shot)')
+  .option('--lint-fragments', 'Fragment health check')
+  .option('--session', 'Token budget report')
+  .option('--budget <n>', 'Set token budget limit', parseInt, 100000)
+  .option('--max-results <n>', 'Limit output', parseInt, 0)
+  .addHelpText('after', `
+
+Examples:
+  md-analyzer /path/to/docs --keypoints --json
+  md-analyzer . --search "task" --rank --json
+  md-analyzer . --session --budget 50000 --json
+  md-analyzer . --orphans --json
+  md-analyzer . --lint-fragments --json
+  md-analyzer . --deps --json`)
+
+program.action((directory: string | undefined, options: Record<string, unknown>) => {
   const startTime = Date.now()
+
+  let parsed: CliOptions
+  try {
+    parsed = CliOptions.parse({ directory, ...options })
+  } catch (e: unknown) {
+    if (e instanceof z.ZodError) {
+      console.error('Invalid arguments:')
+      for (const issue of e.issues) {
+        console.error('  ' + issue.path.join('.') + ': ' + issue.message)
+      }
+    } else {
+      console.error('Unexpected error:', e instanceof Error ? e.message : e)
+    }
+    process.exit(1)
+  }
+
   const configPath = resolveConfigPath()
   const config = getTomlConfig(configPath)
+  const targetDir = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
 
-  if (process.argv.includes('--help') || process.argv.includes('-h')) {
-    showHelp()
-    process.exit(0)
-  }
-
-  if (process.argv.includes('--version') || process.argv.includes('-v')) {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf-8'))
-    console.log(pkg.version)
-    process.exit(0)
-  }
-
-  const flags = parseFlags()
-  const targetDir = flags.cliDir || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
-
-  if (!flags.jsonOnly) console.log('Scanning: ' + targetDir + '\n')
+  if (!parsed.json) console.log('Scanning: ' + targetDir + '\n')
 
   const { files: mdFiles, errors: scanErrors } = scanMarkdownFiles(targetDir)
-  if (!flags.jsonOnly) {
+  if (!parsed.json) {
     console.log('Found ' + mdFiles.length + ' .md files\n')
     if (scanErrors.length > 0) console.log('Warnings: ' + scanErrors.length + ' directories skipped\n')
   }
@@ -43,26 +82,26 @@ function main(): void {
     results[0].stats.errors.push(...scanErrors)
   }
 
-  if (flags.filterRaw && flags.filterRaw.includes('=')) {
-    const [key, value] = flags.filterRaw.split('=')
+  if (parsed.filter && parsed.filter.includes('=')) {
+    const [key, value] = parsed.filter.split('=')
     results = filterByMetadata(results, key, value)
-    if (!flags.jsonOnly) console.log('Filtered by ' + key + '=' + value + ': ' + results.length + ' results\n')
+    if (!parsed.json) console.log('Filtered by ' + key + '=' + value + ': ' + results.length + ' results\n')
   }
 
-  if (flags.searchKeyword) {
-    results = searchContent(results, flags.searchKeyword)
-    if (!flags.jsonOnly) console.log('Search "' + flags.searchKeyword + '": ' + results.length + ' results\n')
+  if (parsed.search) {
+    results = searchContent(results, parsed.search)
+    if (!parsed.json) console.log('Search "' + parsed.search + '": ' + results.length + ' results\n')
   }
 
-  if (flags.rankMode && flags.searchKeyword) {
-    results = rankByRelevance(results, flags.searchKeyword)
-    if (!flags.jsonOnly) console.log('Ranked by relevance to "' + flags.searchKeyword + '"\n')
+  if (parsed.rank && parsed.search) {
+    results = rankByRelevance(results, parsed.search)
+    if (!parsed.json) console.log('Ranked by relevance to "' + parsed.search + '"\n')
   }
 
   let limitedResults = results
-  if (flags.maxResults > 0 && results.length > flags.maxResults) {
-    if (!flags.jsonOnly) console.log('Warning: Limiting output to ' + flags.maxResults + ' of ' + results.length + ' results\n')
-    limitedResults = results.slice(0, flags.maxResults)
+  if (parsed.maxResults > 0 && results.length > parsed.maxResults) {
+    if (!parsed.json) console.log('Warning: Limiting output to ' + parsed.maxResults + ' of ' + results.length + ' results\n')
+    limitedResults = results.slice(0, parsed.maxResults)
   }
 
   const session = loadSession()
@@ -70,21 +109,21 @@ function main(): void {
   saveSession(updatedSession)
   const tokensThisCall = results.reduce((sum, r) => sum + r.stats.tokens, 0)
 
-  if (flags.sessionMode) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, flags.budget), null, 2))
-  else if (flags.keypointsMode) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
-  else if (flags.lintFragmentsMode) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
-  else if (flags.depsMode) {
+  if (parsed.session) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  else if (parsed.keypoints) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
+  else if (parsed.lintFragments) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
+  else if (parsed.deps) {
     const graph = buildGraph(limitedResults)
     console.log(JSON.stringify({ nodes: Object.keys(graph.nodes), edges: graph.edges, tokensThisCall }, null, 2))
-  } else if (flags.orphansMode) {
+  } else if (parsed.orphans) {
     const orphans = findOrphans(buildGraph(limitedResults))
     console.log(JSON.stringify({ orphans, count: orphans.length, tokensThisCall }, null, 2))
-  } else if (flags.backlinksTarget) {
-    const backlinks = findBacklinks(limitedResults, flags.backlinksTarget)
-    console.log(JSON.stringify({ target: flags.backlinksTarget, backlinks, count: backlinks.length, tokensThisCall }, null, 2))
-  } else if (flags.graphMode) console.log(JSON.stringify(buildGraph(limitedResults), null, 2))
+  } else if (parsed.backlinks) {
+    const backlinks = findBacklinks(limitedResults, parsed.backlinks)
+    console.log(JSON.stringify({ target: parsed.backlinks, backlinks, count: backlinks.length, tokensThisCall }, null, 2))
+  } else if (parsed.graph) console.log(JSON.stringify(buildGraph(limitedResults), null, 2))
   else {
-    if (!flags.jsonOnly) {
+    if (!parsed.json) {
       console.log('\nTokens this call: ' + tokensThisCall)
       console.log('Total session tokens: ' + updatedSession.totalTokens + '\n')
     }
@@ -92,7 +131,7 @@ function main(): void {
   }
 
   const usedFlags = process.argv.slice(2).filter(a => a.startsWith('--')).map(a => a.replace(/=.*/, ''))
-  const mode = flags.depsMode ? 'deps' : flags.lintFragmentsMode ? 'lint-fragments' : flags.sessionMode ? 'session' : flags.keypointsMode ? 'keypoints' : flags.orphansMode ? 'orphans' : flags.backlinksTarget ? 'backlinks' : flags.graphMode ? 'graph' : flags.searchKeyword ? 'search' : 'default'
+  const mode = parsed.deps ? 'deps' : parsed.lintFragments ? 'lint-fragments' : parsed.session ? 'session' : parsed.keypoints ? 'keypoints' : parsed.orphans ? 'orphans' : parsed.backlinks ? 'backlinks' : parsed.graph ? 'graph' : parsed.search ? 'search' : 'default'
   writeRunLog({
     timestamp: new Date().toISOString(),
     sessionId: updatedSession.sessionId,
@@ -106,6 +145,6 @@ function main(): void {
     durationMs: Date.now() - startTime,
     mode
   })
-}
+})
 
-main()
+program.parse()

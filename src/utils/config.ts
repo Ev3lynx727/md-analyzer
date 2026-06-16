@@ -1,14 +1,9 @@
 import * as fs from 'fs'
 import * as path from 'path'
-import type { AnalyzerConfig } from '../types/index.js'
+import { AnalyzerConfigSchema } from '../core/schema.js'
+import type { AnalyzerConfig } from '../core/schema.js'
 
-const DEFAULT_CONFIG: AnalyzerConfig = {
-  default_directory: '',
-  default_budget: 100000,
-  max_tokens: 200000,
-  max_results_default: 20,
-  session_file: '/tmp/md-analyzer-session.json'
-}
+const DEFAULT_CONFIG: AnalyzerConfig = AnalyzerConfigSchema.parse({})
 
 export function getTomlConfig(tomlPath: string): AnalyzerConfig {
   try {
