@@ -4,7 +4,7 @@
 
 CLI tool + agent-plugin ecosystem for Markdown document analysis. Extracts headings, links, tables, wikilinks, frontmatter, inline formatting, code blocks, token counts. Outputs `AnalysisResult` JSON for AI agents to make informed read decisions without consuming full file context.
 
-`@ev3lynx/md-analyzer` v0.1.6 — MIT, TypeScript, Node >=18.
+`@ev3lynx/md-analyzer` v0.2.0 — MIT, TypeScript (ESM), Node >=18.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ src/
   cli/index.ts              Commander CLI, flags, orchestration
   cli/output.ts             extractKeyPoints(), writeRunLog()
   core/
-    analyzer.ts             analyzeFile() sync, analyzeFileWithMicromark() async
+    analyzer.ts             analyzeFile() sync, analyzeFileWithMicromark() sync
     extractors.ts           @deprecated regex fallbacks: extractHeadings/Links/Tables
     counters.ts             word/char/line/token counting via js-tiktoken
     micromark-walk.ts       token walkers: code blocks, links, headings, tables, formatting
@@ -35,7 +35,7 @@ src/
 analyzeFileWithMicromark(path)
   -> fs.readFileSync
   -> extractFrontmatter (regex)
-  -> Promise.all: walkCodeBlocks, walkLinks, walkHeadings, walkTables, walkFormatting
+  -> walkCodeBlocks, walkLinks, walkHeadings, walkTables, walkFormatting (sync)
   -> buildBaseResult (regex fallbacks)
   -> filterMicromarkLinks/Headings/Tables (micromark wins, filters code-block false positives)
   -> countCodeBlocks + countFormatting (merged)
@@ -67,13 +67,13 @@ AnalysisResult {
 
 ## Critical Constraints
 
-- **micromark v4.0.2**: ESM-only. Dynamic import() via getMicromark() lazy loader
+- **micromark v4.0.2**: Static top-level import via ESM build (module NodeNext)
 - **micromark-extension-gfm v3.0.0**: Required for table tokenization in walkTables()
 - **@types/node**: Pinned ^20.0.0, skipLibCheck: true, compiles clean on TS 5.x
 - **Inline formatting**: NOT tokenized by micromark.parse(). Regex walkFormatting() is the only path
 - **Formatting regex**: bold `(?<!\*)\*\*(?!\*)(.+?)\*\*`, italic `(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)`, bold+italic `\*\*\*(.+?)\*\*\*`, bullets `^[ \t]*[-*+][ \t]`
 - **ripgrep 13.0.0**: execFileSync for --search and --rank. Falls back to fs.readFileSync
-- **Build**: tsc -> CommonJS output in dist/. micromark consumed via runtime dynamic import
+- **Build**: tsc -> ESM output (module NodeNext), micromark consumed via static import
 - **md-analyzer binary**: in PATH at /run/user/1000/fnm_multishells/2350_1781758185408/bin/md-analyzer
 
 ## CLI Flags
@@ -130,7 +130,7 @@ Config lives in config.json alongside plugin.ts. Built-in defaults if config mis
 | File | Purpose |
 |------|---------|
 | src/core/analyzer.ts | Main pipeline, buildBaseResult(), analyzeFile(), analyzeFileWithMicromark() |
-| src/core/micromark-walk.ts | All 5 token walkers, lazy micromark loader, event parsing |
+| src/core/micromark-walk.ts | All 5 token walkers, event parsing, GFM table extension |
 | src/core/hybrid-merge.ts | Filter functions, countCodeBlocks(), countFormatting() |
 | src/core/extractors.ts | Regex fallbacks, frontmatter, wikilinks — @deprecated |
 | src/core/search.ts | ripgrep-first search + rank |
@@ -144,8 +144,8 @@ Config lives in config.json alongside plugin.ts. Built-in defaults if config mis
 
 ## Recent Changes
 
+- v0.2.0: Full ESM conversion — `"type": "module"`, `"module": "NodeNext"`, `__dirname` → `import.meta.url`, lazy dynamic import → static micromark imports
 - Config moved to config.json — no hardcoded lists in plugin code
-- loadConfig() async, Bun.file() with DEFAULTS fallback if missing/invalid
 - Plugin confirmed working: [md-analyzer] diagnostics visible in terminal, keypoints injected into read output
 - CONTRIBUTING.md (WHITELIST_NAMES) shows keypoints-only; fallback files show keypoints + full content
 
