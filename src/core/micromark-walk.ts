@@ -20,6 +20,8 @@ export interface MicromarkLink {
   isReference: boolean
 }
 
+import { parse, postprocess, preprocess } from 'micromark'
+import { gfm } from 'micromark-extension-gfm'
 import type { Heading, Table } from '../types/index.js'
 
 interface MicromarkEvent {
@@ -27,38 +29,15 @@ interface MicromarkEvent {
   1: { type: string; start: { offset: number }; end?: { offset: number } }
 }
 
-let micromarkModule: any = null
-
-async function getMicromark(): Promise<any> {
-  if (micromarkModule === null) {
-    try {
-      micromarkModule = await import('micromark')
-    } catch {
-      micromarkModule = false
-    }
-  }
-  return micromarkModule
-}
-
-export async function isMicromarkAvailable(): Promise<boolean> {
-  const mm = await getMicromark()
-  return mm !== false
-}
-
 function parseEvents(content: string, extensions?: any[]): MicromarkEvent[] {
-  const mm: any = micromarkModule
-  if (!mm) throw new Error('micromark not loaded')
   if (!content) return []
   const opts = extensions && extensions.length > 0 ? { extensions } : {}
-  return mm.postprocess(
-    mm.parse(opts).document().write(mm.preprocess()(content, 'utf-8', true))
+  return postprocess(
+    parse(opts).document().write(preprocess()(content, 'utf-8', true))
   )
 }
 
-export async function walkCodeBlocks(content: string): Promise<CodeBlockRegion[] | null> {
-  const mm = await getMicromark()
-  if (!mm) return null
-
+export function walkCodeBlocks(content: string): CodeBlockRegion[] | null {
   try {
     const events = parseEvents(content)
     const regions: CodeBlockRegion[] = []
@@ -87,10 +66,7 @@ export async function walkCodeBlocks(content: string): Promise<CodeBlockRegion[]
   }
 }
 
-export async function walkLinks(content: string): Promise<MicromarkLink[] | null> {
-  const mm = await getMicromark()
-  if (!mm) return null
-
+export function walkLinks(content: string): MicromarkLink[] | null {
   try {
     const events = parseEvents(content)
     const definitions = new Map<string, string>()
@@ -166,10 +142,7 @@ function offsetToLine(content: string, offset: number): number {
   return line
 }
 
-export async function walkHeadings(content: string): Promise<Heading[] | null> {
-  const mm = await getMicromark()
-  if (!mm) return null
-
+export function walkHeadings(content: string): Heading[] | null {
   try {
     const events = parseEvents(content)
     const headings: Heading[] = []
@@ -209,10 +182,7 @@ export async function walkHeadings(content: string): Promise<Heading[] | null> {
   }
 }
 
-export async function walkFormatting(content: string): Promise<FormattingCounts | null> {
-  const mm = await getMicromark()
-  if (!mm) return null
-
+export function walkFormatting(content: string): FormattingCounts | null {
   try {
     const boldItalicRe = /\*\*\*(.+?)\*\*\*/g
     const boldRe = /(?<!\*)\*\*(?!\*)(.+?)\*\*/g
@@ -236,13 +206,9 @@ export async function walkFormatting(content: string): Promise<FormattingCounts 
   }
 }
 
-export async function walkTables(content: string): Promise<Table[] | null> {
-  const mm = await getMicromark()
-  if (!mm) return null
-
+export function walkTables(content: string): Table[] | null {
   try {
-    const gfm = await import('micromark-extension-gfm')
-    const events = parseEvents(content, [gfm.gfm()])
+    const events = parseEvents(content, [gfm()])
     const tables: Table[] = []
 
     let currentTable: { headers: string[]; rows: string[][] } | null = null

@@ -22,6 +22,7 @@
 
 ### Changed
 
+- **Full ESM conversion** — `"type": "module"` in package.json, `"module": "NodeNext"` in tsconfig, all `__dirname` replaced with `import.meta.url` + `fileURLToPath`, lazy dynamic `import('micromark')` replaced with static top-level imports throughout
 - **Hybrid merge pattern** — micromark filters/corrects regex output rather than replacing it; `filterMicromarkLinks()`, `filterMicromarkHeadings()`, `filterMicromarkTables()` filter out code-block false positives
 - **CLI now accepts `.md` files** — `fs.statSync` detection for file vs directory vs nonexistent; `path_not_found` error for missing paths
 - **Error handling** — every code path returns a valid `AnalysisResult`, never throws; `buildBaseResult()` extracted to eliminate double file read; `try/catch` around `Promise.all` pipeline with automatic regex fallback + error propagation

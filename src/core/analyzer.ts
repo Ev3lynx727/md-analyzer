@@ -4,7 +4,7 @@ import { encodingForModel } from 'js-tiktoken'
 import { SKIP_DIRS } from '../utils/constants.js'
 import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractTables, extractWikilinks } from './extractors.js'
 import { countStats } from './counters.js'
-import { walkCodeBlocks, walkLinks, walkHeadings, walkTables, walkFormatting, isMicromarkAvailable } from './micromark-walk.js'
+import { walkCodeBlocks, walkLinks, walkHeadings, walkTables, walkFormatting } from './micromark-walk.js'
 import { filterMicromarkLinks, filterMicromarkHeadings, filterMicromarkTables, countCodeBlocks, countFormatting } from './hybrid-merge.js'
 import type { AnalysisResult, SectionInfo } from '../types/index.js'
 
@@ -85,7 +85,7 @@ export function analyzeFile(filePath: string): AnalysisResult {
   return buildBaseResult(filePath, content, errors)
 }
 
-export async function analyzeFileWithMicromark(filePath: string): Promise<AnalysisResult> {
+export function analyzeFileWithMicromark(filePath: string): AnalysisResult {
   const errors: string[] = []
 
   let content = ''
@@ -101,19 +101,12 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
 
   const { content: markdownContent } = extractFrontmatter(content)
 
-  if (!(await isMicromarkAvailable())) {
-    errors.push('micromark_unavailable')
-    return buildBaseResult(filePath, content, errors)
-  }
-
   try {
-    const [regions, mmLinks, mmHeadings, mmTables, mmFormatting] = await Promise.all([
-      walkCodeBlocks(markdownContent),
-      walkLinks(markdownContent),
-      walkHeadings(markdownContent),
-      walkTables(markdownContent),
-      walkFormatting(markdownContent)
-    ])
+    const regions = walkCodeBlocks(markdownContent)
+    const mmLinks = walkLinks(markdownContent)
+    const mmHeadings = walkHeadings(markdownContent)
+    const mmTables = walkTables(markdownContent)
+    const mmFormatting = walkFormatting(markdownContent)
 
     if (mmLinks === null) errors.push('walkLinks_failed')
     if (mmHeadings === null) errors.push('walkHeadings_failed')

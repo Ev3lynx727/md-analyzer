@@ -2,7 +2,11 @@
 import { Command } from 'commander'
 import * as path from 'path'
 import * as fs from 'fs'
+import { fileURLToPath } from 'url'
 import { z } from 'zod'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import { CliOptions } from '../core/schema.js'
 import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
@@ -95,7 +99,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     scanErrors.push('path_not_found: ' + targetArg)
   }
 
-  let results = await Promise.all(mdFiles.map(file => analyzeFileWithMicromark(file).catch(() => analyzeFile(file))))
+  let results = mdFiles.map(file => { try { return analyzeFileWithMicromark(file) } catch { return analyzeFile(file) } })
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
     results[0].stats.errors.push(...scanErrors)
