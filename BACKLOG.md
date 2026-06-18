@@ -15,10 +15,11 @@
 |------------|------|-------------|----------|-------|---------|
 | js-tiktoken | dep | Module | 100% | 1/1 | Core |
 | js-yaml | dep | Module | 100% | 1/1 | Core |
-| micromark | dep | Dead | 0% | 0/1 | Dead weight — listed in README as dep but never imported in source |
+| micromark | dep | Module | 100% | 4/4 | Core — walkCodeBlocks, walkLinks, walkHeadings, walkTables; v4.0.2 |
+| micromark-extension-gfm | dep | Module | 100% | 1/1 | Core — walkTables via GFM spec |
 | @eslint/js | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
 | @types/js-yaml | devDep | Config | 100% | 1/1 | Core (tsconfig) |
-| @types/node | devDep | Config | 100% | 1/1 | Core (tsconfig) — broken compat with TS 6.0.3 |
+| @types/node | devDep | Config | 100% | 1/1 | Core (tsconfig) — pinned to ^20.0.0, compiles clean |
 | eslint | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
 | typescript | devDep | Config | 100% | 1/1 | Core (tsconfig build) |
 | typescript-eslint | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
@@ -27,8 +28,8 @@
 
 | # | Item | Status | Root Cause | Why | What's the Matter | Description |
 |---|------|--------|------------|-----|-------------------|-------------|
-| 1 | Remove micromark from deps | ⬜ | Was planned for markdown parsing but all parsing is done via regex | Eliminates dead weight, simplifies dep tree | 0% integration, misleading README | Remove from `dependencies`, remove from README dep table |
-| 2 | Fix @types/node compat with TS 6.0.3 | 🔴 | @types/node v25.9.3 emits TS syntax incompatible with TypeScript 6.0.3 parser (857 errors in node_modules) | Build is broken — cannot typecheck or compile | CI/CD pipeline blocked, can't verify code quality | Upgrade @types/node to v26+ or downgrade to matching version |
+| 1 | ~~Remove micromark from deps~~ | ✅ Done | micromark integrated in 4 phases (Ph1→Ph4): code blocks, links/images, headings, tables | — | — | — |
+| 2 | ~~Fix @types/node compat with TS 6.0.3~~ | ✅ Done | Pinned to `^20.0.0` (v20.19.43), skipLibCheck enabled, compiles clean | — | — | — |
 
 ## Changelog Audit Trail — 2026-06-14
 
@@ -83,7 +84,7 @@
 
 | # | Issue | Impact | Workaround |
 |---|-------|--------|------------|
-| 1 | @types/node v25.9.3 incompatible with TypeScript 6.0.3 | Build broken (857 errors in node_modules) | Use `tsc --skipLibCheck` or use precompiled `md-analyzer.js` |
+| 1 | ~~@types/node v25.9.3 incompatible with TS 6.0.3~~ | RESOLVED — pinned to `^20.0.0`, `skipLibCheck: true`, builds clean | — |
 
 ## Implementation Audit Trail — 2026-06-14
 
@@ -128,4 +129,4 @@ No mismatches found — all documentation claims are consistent with source stat
 
 | # | Issue | Impact | Workaround |
 |---|-------|--------|-------------|
-| 1 | @types/node v25.9.3 incompatible with TS 6.0.3 | 857 type errors in node_modules — build broken | `npm run build` uses `tsc --project tsconfig.json` which errors; use precompiled `md-analyzer.js` or add `--skipLibCheck` to tsconfig |
+| 1 | ~~@types/node v25.9.3 incompatible with TS 6.0.3~~ | RESOLVED — `@types/node` pinned to `^20.0.0` (v20.19.43) compiles clean under TS 5.9.3 with `skipLibCheck: true` | — |
