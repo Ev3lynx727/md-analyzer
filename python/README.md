@@ -83,4 +83,4 @@ The LLM's response:
 ## Related
 
 - `./pre_read.py` — the hook script
-- `md-analyzer` — Go CLI that powers the primary path
+- `md-analyzer` — Node.js CLI that powers the primary path (keypoints includes tokens, links, formatting counts)

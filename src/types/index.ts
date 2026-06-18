@@ -3,6 +3,7 @@ export interface Link {
   url: string
   isInternal: boolean
   fileName: string | null
+  isImage?: boolean
 }
 
 export interface Wikilink {
@@ -44,6 +45,9 @@ export interface Stats {
   codeBlocks: number
   tables: number
   tokens: number
+  boldCount?: number
+  italicCount?: number
+  bulletCount?: number
   errors?: string[]
 }
 

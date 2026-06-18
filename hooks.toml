@@ -42,11 +42,11 @@ session = "Show session token budget stats"
 budget = "Set token budget limit (default: 100000)"
 
 [tool.md-analyzer.examples]
-quick_overview = "node md-analyzer.js <dir> --keypoints --json"
-search_and_rank = "node md-analyzer.js <dir> --search 'task' --rank --json"
-find_related = "node md-analyzer.js <dir> --backlinks adr-2026-04-01-task-lifecycle --json"
-token_budget = "node md-analyzer.js <dir> --session --budget 50000 --json"
-filter_by_category = "node md-analyzer.js <dir> --filter category=guides --json"
+quick_overview = "md-analyzer <file|dir> --keypoints --json"
+search_and_rank = "md-analyzer <dir> --search 'task' --rank --json"
+find_related = "md-analyzer <dir> --backlinks adr-2026-04-01-task-lifecycle --json"
+token_budget = "md-analyzer <dir> --session --budget 50000 --json"
+filter_by_category = "md-analyzer <dir> --filter category=guides --json"
 
 [tool.md-analyzer.agent_use_case]
 single_shot = "Use --keypoints flag to get quick document overview without reading full content"
