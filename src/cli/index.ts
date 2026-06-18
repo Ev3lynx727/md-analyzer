@@ -5,7 +5,7 @@ import * as fs from 'fs'
 import { z } from 'zod'
 import { CliOptions } from '../core/schema.js'
 import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
-import { scanMarkdownFiles, analyzeFile } from '../core/analyzer.js'
+import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
@@ -46,7 +46,7 @@ Examples:
   md-analyzer . --lint-fragments --json
   md-analyzer . --deps --json`)
 
-program.action((directory: string | undefined, options: Record<string, unknown>) => {
+program.action(async (directory: string | undefined, options: Record<string, unknown>) => {
   const startTime = Date.now()
 
   let parsed: CliOptions
@@ -76,7 +76,7 @@ program.action((directory: string | undefined, options: Record<string, unknown>)
     if (scanErrors.length > 0) console.log('Warnings: ' + scanErrors.length + ' directories skipped\n')
   }
 
-  let results = mdFiles.map(file => analyzeFile(file))
+  let results = await Promise.all(mdFiles.map(file => analyzeFileWithMicromark(file).catch(() => analyzeFile(file))))
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
     results[0].stats.errors.push(...scanErrors)
