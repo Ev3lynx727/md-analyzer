@@ -1,6 +1,6 @@
 {
   "name": "@ev3lynx/md-analyzer",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

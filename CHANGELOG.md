@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.2.0] - 2026-06-18
+
+### Added
+
+- **Micromark hybrid integration (Phases 1–4)** — token-stream analysis replaces regex as primary extraction path for headings, links, tables, and code blocks
+  - Phase 1: Code region mask via `walkCodeBlocks()` — filters false positive links/headings/tables inside fenced/indented code blocks
+  - Phase 2: Reference links + autolinks + image detection — `walkLinks()` extracts resolved references, autolinks, inline links; `isImage` field on `Link` type
+  - Phase 3: Setext headings — `walkHeadings()` captures ATX + setext (`===` / `---` underlined) in one pass
+  - Phase 4: Full GFM table parsing via `micromark-extension-gfm` `walkTables()`; regex extractors marked `@deprecated`
+- **Inline formatting counts** — `boldCount?`, `italicCount?`, `bulletCount?` on `Stats` type, via `walkFormatting()` regex detection filtered through code region mask
+- **Plugin ecosystem**
+  - Opencode plugin (`plugins/opencode-md-analyzer/plugin.ts`) — `tool.execute.before` + `tool.execute.after` lifecycle hooks with tiered read behavior (keypoints-only vs full read vs skip)
+  - External config (`plugins/opencode-md-analyzer/config.json`) — whitelist_names / whitelist_paths / exclude_paths loaded at init with built-in defaults fallback
+  - Openclaw hook (`plugins/openclaw-md-analyzer/handler.ts`) — `before_tool_call` handler that injects `md-analyzer --keypoints` outline
+  - Python pre-read hook (`python/pre_read.py`) — whitelist, frontmatter/heading extraction, section bounds
+- **Documentation**
+  - `docs/INTEGRATION.md` — framework integration reference (opencode, openclaw, kiro-cli, hermes)
+  - `CE.md` — context engineer handoff for LLM agents
+  - `plugins/openclaw-md-analyzer/HOOK.md` — hook installation guide
+
+### Changed
+
+- **Hybrid merge pattern** — micromark filters/corrects regex output rather than replacing it; `filterMicromarkLinks()`, `filterMicromarkHeadings()`, `filterMicromarkTables()` filter out code-block false positives
+- **CLI now accepts `.md` files** — `fs.statSync` detection for file vs directory vs nonexistent; `path_not_found` error for missing paths
+- **Error handling** — every code path returns a valid `AnalysisResult`, never throws; `buildBaseResult()` extracted to eliminate double file read; `try/catch` around `Promise.all` pipeline with automatic regex fallback + error propagation
+- **`buildBaseResult()`** — single source for base result construction, used by both `analyzeFile()` sync fallback and `analyzeFileWithMicromark()` async primary path
+- **Plugin config externalized** — moved from hardcoded constants to `config.json` loaded via `Bun.file()` with DEFAULTS fallback
+
+### Fixed
+
+- Code blocks no longer leak false links, headings, or tables into analysis output
+- Autolinks now appear in output (regex missed them entirely)
+- Images separated from links via `isImage` flag
+- Setext headings now captured (regex only saw ATX headings)
+- Plugin caching — in-memory cache avoids redundant `md-analyzer` calls on repeated reads
+- `Bun.TOML` → `Bun.file()` for config loading compatibility
+
 ## [0.1.6] - 2026-06-16
 
 ### Changed
