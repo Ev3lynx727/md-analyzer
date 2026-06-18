@@ -40,6 +40,8 @@ export async function isMicromarkAvailable(): Promise<boolean> {
 
 function parseEvents(content: string, extensions?: any[]): MicromarkEvent[] {
   const mm: any = micromarkModule
+  if (!mm) throw new Error('micromark not loaded')
+  if (!content) return []
   const opts = extensions && extensions.length > 0 ? { extensions } : {}
   return mm.postprocess(
     mm.parse(opts).document().write(mm.preprocess()(content, 'utf-8', true))
@@ -72,7 +74,8 @@ export async function walkCodeBlocks(content: string): Promise<CodeBlockRegion[]
     }
 
     return regions
-  } catch {
+  } catch (e) {
+    console.error('walkCodeBlocks_error:', e instanceof Error ? e.message : e)
     return null
   }
 }
@@ -142,7 +145,8 @@ export async function walkLinks(content: string): Promise<MicromarkLink[] | null
     }
 
     return links
-  } catch {
+  } catch (e) {
+    console.error('walkLinks_error:', e instanceof Error ? e.message : e)
     return null
   }
 }
@@ -192,7 +196,8 @@ export async function walkHeadings(content: string): Promise<Heading[] | null> {
     }
 
     return headings.length > 0 ? headings : null
-  } catch {
+  } catch (e) {
+    console.error('walkHeadings_error:', e instanceof Error ? e.message : e)
     return null
   }
 }
@@ -258,7 +263,8 @@ export async function walkTables(content: string): Promise<Table[] | null> {
     }
 
     return tables.length > 0 ? tables : null
-  } catch {
+  } catch (e) {
+    console.error('walkTables_error:', e instanceof Error ? e.message : e)
     return null
   }
 }
