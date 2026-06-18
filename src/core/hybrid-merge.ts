@@ -1,4 +1,4 @@
-import type { CodeBlockRegion } from './micromark-walk.js'
+import type { CodeBlockRegion, MicromarkLink } from './micromark-walk.js'
 import type { Link, Heading } from '../types/index.js'
 
 function isInsideBlock(pos: { line?: number; offset?: number }, regions: CodeBlockRegion[]): boolean {
@@ -30,4 +30,41 @@ export function filterHeadings(headings: Heading[], regions: CodeBlockRegion[], 
 
 export function countCodeBlocks(regions: CodeBlockRegion[] | null): number {
   return regions ? regions.length : -1
+}
+
+function isInternalUrl(url: string): boolean {
+  return url.startsWith('#') || (!url.startsWith('http') && !url.startsWith('//'))
+}
+
+export function mergeLinks(regexLinks: Link[], micromarkLinks: MicromarkLink[], content: string): Link[] {
+  if (!micromarkLinks || micromarkLinks.length === 0) return regexLinks
+
+  const imageOffsets = new Set<number>()
+  const extras: Link[] = []
+
+  for (const ml of micromarkLinks) {
+    if (ml.isImage) {
+      const idx = content.indexOf(ml.text)
+      if (idx !== -1) imageOffsets.add(idx)
+    }
+    if (ml.isAutolink || ml.isReference) {
+      extras.push({
+        text: ml.text,
+        url: ml.url,
+        isInternal: isInternalUrl(ml.url),
+        fileName: null
+      })
+    }
+  }
+
+  const result = regexLinks.map(link => {
+    const idx = content.indexOf(link.text)
+    if (idx !== -1 && imageOffsets.has(idx)) {
+      return { ...link, isImage: true }
+    }
+    return link
+  })
+
+  result.push(...extras)
+  return result
 }

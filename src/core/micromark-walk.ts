@@ -3,6 +3,16 @@ export interface CodeBlockRegion {
   end: number
 }
 
+export interface MicromarkLink {
+  text: string
+  url: string
+  start: number
+  end: number
+  isImage: boolean
+  isAutolink: boolean
+  isReference: boolean
+}
+
 interface MicromarkEvent {
   0: 'enter' | 'exit'
   1: { type: string; start: { offset: number }; end?: { offset: number } }
@@ -26,15 +36,19 @@ export async function isMicromarkAvailable(): Promise<boolean> {
   return mm !== false
 }
 
+function parseEvents(content: string): MicromarkEvent[] {
+  const mm: any = micromarkModule
+  return mm.postprocess(
+    mm.parse().document().write(mm.preprocess()(content, 'utf-8', true))
+  )
+}
+
 export async function walkCodeBlocks(content: string): Promise<CodeBlockRegion[] | null> {
   const mm = await getMicromark()
   if (!mm) return null
 
   try {
-    const events: MicromarkEvent[] = mm.postprocess(
-      mm.parse().document().write(mm.preprocess()(content, 'utf-8', true))
-    )
-
+    const events = parseEvents(content)
     const regions: CodeBlockRegion[] = []
     let depth = 0
     let currentStart = 0
@@ -55,6 +69,76 @@ export async function walkCodeBlocks(content: string): Promise<CodeBlockRegion[]
     }
 
     return regions
+  } catch {
+    return null
+  }
+}
+
+export async function walkLinks(content: string): Promise<MicromarkLink[] | null> {
+  const mm = await getMicromark()
+  if (!mm) return null
+
+  try {
+    const events = parseEvents(content)
+    const definitions = new Map<string, string>()
+
+    for (const ev of events) {
+      if (ev[0] === 'enter' && ev[1].type === 'definitionLabelString') {
+        const name = content.slice(ev[1].start.offset, ev[1].end?.offset ?? ev[1].start.offset).toLowerCase()
+        definitions.set(name, '')
+      } else if (ev[0] === 'enter' && ev[1].type === 'definitionDestinationString') {
+        const url = content.slice(ev[1].start.offset, ev[1].end?.offset ?? ev[1].start.offset)
+        let lastName = ''
+        for (const [k, v] of definitions) {
+          if (!v) { lastName = k; break }
+        }
+        if (lastName) definitions.set(lastName, url)
+      }
+    }
+
+    const links: MicromarkLink[] = []
+    let current: { type: string; start: number; text: string; url: string; hasRef: boolean } | null = null
+
+    for (const ev of events) {
+      const token = ev[1]
+      const slice = (t: typeof token): string =>
+        content.slice(t.start.offset, t.end?.offset ?? t.start.offset)
+
+      if (ev[0] === 'enter' && (token.type === 'link' || token.type === 'image' || token.type === 'autolink')) {
+        current = { type: token.type, start: token.start.offset, text: '', url: '', hasRef: false }
+      }
+
+      if (current && ev[0] === 'enter') {
+        if (token.type === 'labelText') {
+          current.text = slice(token)
+        } else if (token.type === 'resourceDestinationString') {
+          current.url = slice(token)
+        } else if (token.type === 'referenceString') {
+          current.hasRef = true
+          current.url = definitions.get(slice(token).toLowerCase()) ?? slice(token)
+        } else if (token.type === 'autolinkEmail' || token.type === 'autolinkProtocol') {
+          current.url = slice(token)
+          if (!current.text) current.text = current.url
+        }
+      }
+
+      if (ev[0] === 'exit' && current && token.type === current.type) {
+        if (token.end && (current.text || current.url)) {
+          links.push({
+            text: current.text || current.url,
+            url: current.url || current.text,
+            start: current.start,
+            end: token.end.offset,
+            isImage: current.type === 'image',
+            isAutolink: current.type === 'autolink',
+            isReference: current.hasRef
+          })
+        }
+        current = null
+      }
+    }
+
+    return links
   } catch {
     return null
   }

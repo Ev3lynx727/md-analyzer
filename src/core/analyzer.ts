@@ -4,8 +4,8 @@ import { encodingForModel } from 'js-tiktoken'
 import { SKIP_DIRS } from '../utils/constants.js'
 import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractWikilinks, extractTables } from './extractors.js'
 import { countStats } from './counters.js'
-import { walkCodeBlocks, isMicromarkAvailable } from './micromark-walk.js'
-import { filterLinks, filterHeadings, countCodeBlocks } from './hybrid-merge.js'
+import { walkCodeBlocks, walkLinks, isMicromarkAvailable } from './micromark-walk.js'
+import { filterLinks, filterHeadings, mergeLinks, countCodeBlocks } from './hybrid-merge.js'
 import type { AnalysisResult, SectionInfo } from '../types/index.js'
 
 export function scanMarkdownFiles(dir: string): { files: string[]; errors: string[] } {
@@ -96,18 +96,24 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
   }
 
   const { content: markdownContent } = extractFrontmatter(content)
-  const regions = await walkCodeBlocks(markdownContent)
 
-  if (!regions || regions.length === 0) return result
+  const [regions, mmLinks] = await Promise.all([
+    walkCodeBlocks(markdownContent),
+    walkLinks(markdownContent)
+  ])
 
-  result.links = filterLinks(result.links, regions, markdownContent)
-  result.headings = filterHeadings(result.headings, regions, markdownContent)
-  result.sections = computeSections(markdownContent, result.headings)
-  result.stats.codeBlocks = countCodeBlocks(regions)
+  if (regions && regions.length > 0) {
+    result.links = filterLinks(result.links, regions, markdownContent)
+    result.headings = filterHeadings(result.headings, regions, markdownContent)
+    result.sections = computeSections(markdownContent, result.headings)
+    result.stats.codeBlocks = countCodeBlocks(regions)
+    result.stats.totalHeadings = result.headings.length
+  }
+
+  result.links = mergeLinks(result.links, mmLinks ?? [], markdownContent)
   result.stats.totalLinks = result.links.length
   result.stats.internalLinks = result.links.filter(l => l.isInternal).length
   result.stats.externalLinks = result.links.filter(l => !l.isInternal).length
-  result.stats.totalHeadings = result.headings.length
   result.stats.errors = errors.length > 0 ? errors : undefined
 
   return result

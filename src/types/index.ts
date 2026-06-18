@@ -3,6 +3,7 @@ export interface Link {
   url: string
   isInternal: boolean
   fileName: string | null
+  isImage?: boolean
 }
 
 export interface Wikilink {
