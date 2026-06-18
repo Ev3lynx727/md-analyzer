@@ -3,6 +3,13 @@ export interface CodeBlockRegion {
   end: number
 }
 
+export interface FormattingCounts {
+  bold: number
+  italic: number
+  boldItalic: number
+  bullet: number
+}
+
 export interface MicromarkLink {
   text: string
   url: string
@@ -198,6 +205,33 @@ export async function walkHeadings(content: string): Promise<Heading[] | null> {
     return headings.length > 0 ? headings : null
   } catch (e) {
     console.error('walkHeadings_error:', e instanceof Error ? e.message : e)
+    return null
+  }
+}
+
+export async function walkFormatting(content: string): Promise<FormattingCounts | null> {
+  const mm = await getMicromark()
+  if (!mm) return null
+
+  try {
+    const boldItalicRe = /\*\*\*(.+?)\*\*\*/g
+    const boldRe = /(?<!\*)\*\*(?!\*)(.+?)\*\*/g
+    const italicRe = /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g
+    const bulletRe = /^[ \t]*[-*+][ \t]/gm
+
+    const boldItalicMatches = [...content.matchAll(boldItalicRe)]
+    const boldMatches = [...content.matchAll(boldRe)]
+    const italicMatches = [...content.matchAll(italicRe)]
+    const bulletMatches = [...content.matchAll(bulletRe)]
+
+    return {
+      bold: boldMatches.length,
+      italic: italicMatches.length,
+      boldItalic: boldItalicMatches.length,
+      bullet: bulletMatches.length
+    }
+  } catch (e) {
+    console.error('walkFormatting_error:', e instanceof Error ? e.message : e)
     return null
   }
 }

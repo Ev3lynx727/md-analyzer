@@ -1,5 +1,5 @@
 import * as path from 'path'
-import type { CodeBlockRegion, MicromarkLink } from './micromark-walk.js'
+import type { CodeBlockRegion, FormattingCounts, MicromarkLink } from './micromark-walk.js'
 import type { Link, Heading, Table } from '../types/index.js'
 
 function isInsideBlock(offset: number, regions: CodeBlockRegion[]): boolean {
@@ -49,4 +49,42 @@ export function filterMicromarkTables(tables: Table[], regions: CodeBlockRegion[
 
 export function countCodeBlocks(regions: CodeBlockRegion[] | null): number {
   return regions ? regions.length : -1
+}
+
+function isInsideAnyBlock(offset: number, regions: CodeBlockRegion[]): boolean {
+  return regions.some(r => offset >= r.start && offset < r.end)
+}
+
+export function countFormatting(
+  counts: FormattingCounts | null,
+  content: string,
+  regions: CodeBlockRegion[]
+): { boldCount: number; italicCount: number; bulletCount: number } {
+  if (!counts) return { boldCount: 0, italicCount: 0, bulletCount: 0 }
+
+  if (regions.length === 0) {
+    return {
+      boldCount: counts.bold + counts.boldItalic,
+      italicCount: counts.italic,
+      bulletCount: counts.bullet
+    }
+  }
+
+  const boldItalicRe = /\*\*\*(.+?)\*\*\*/g
+  const boldRe = /(?<!\*)\*\*(?!\*)(.+?)\*\*/g
+  const italicRe = /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g
+  const bulletRe = /^[ \t]*[-*+][ \t]/gm
+
+  const isInCode = (offset: number) => isInsideAnyBlock(offset, regions)
+
+  const boldItalicCount = [...content.matchAll(boldItalicRe)].filter(m => !isInCode(m.index)).length
+  const boldCount = [...content.matchAll(boldRe)].filter(m => !isInCode(m.index)).length
+  const italicCount = [...content.matchAll(italicRe)].filter(m => !isInCode(m.index)).length
+  const bulletCount = [...content.matchAll(bulletRe)].filter(m => !isInCode(m.index)).length
+
+  return {
+    boldCount: boldCount + boldItalicCount,
+    italicCount,
+    bulletCount
+  }
 }

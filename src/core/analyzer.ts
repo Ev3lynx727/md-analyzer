@@ -4,8 +4,8 @@ import { encodingForModel } from 'js-tiktoken'
 import { SKIP_DIRS } from '../utils/constants.js'
 import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractTables, extractWikilinks } from './extractors.js'
 import { countStats } from './counters.js'
-import { walkCodeBlocks, walkLinks, walkHeadings, walkTables, isMicromarkAvailable } from './micromark-walk.js'
-import { filterMicromarkLinks, filterMicromarkHeadings, filterMicromarkTables, countCodeBlocks } from './hybrid-merge.js'
+import { walkCodeBlocks, walkLinks, walkHeadings, walkTables, walkFormatting, isMicromarkAvailable } from './micromark-walk.js'
+import { filterMicromarkLinks, filterMicromarkHeadings, filterMicromarkTables, countCodeBlocks, countFormatting } from './hybrid-merge.js'
 import type { AnalysisResult, SectionInfo } from '../types/index.js'
 
 export function scanMarkdownFiles(dir: string): { files: string[]; errors: string[] } {
@@ -107,16 +107,18 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
   }
 
   try {
-    const [regions, mmLinks, mmHeadings, mmTables] = await Promise.all([
+    const [regions, mmLinks, mmHeadings, mmTables, mmFormatting] = await Promise.all([
       walkCodeBlocks(markdownContent),
       walkLinks(markdownContent),
       walkHeadings(markdownContent),
-      walkTables(markdownContent)
+      walkTables(markdownContent),
+      walkFormatting(markdownContent)
     ])
 
     if (mmLinks === null) errors.push('walkLinks_failed')
     if (mmHeadings === null) errors.push('walkHeadings_failed')
     if (mmTables === null) errors.push('walkTables_failed')
+    if (mmFormatting === null) errors.push('walkFormatting_failed')
 
     const safeRegions = regions ?? []
     const result = buildBaseResult(filePath, content, errors)
@@ -134,6 +136,12 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
     result.stats.tables = result.tables.length
 
     result.stats.codeBlocks = countCodeBlocks(regions)
+
+    const fmt = countFormatting(mmFormatting, markdownContent, safeRegions)
+    result.stats.boldCount = fmt.boldCount
+    result.stats.italicCount = fmt.italicCount
+    result.stats.bulletCount = fmt.bulletCount
+
     result.stats.errors = errors.length > 0 ? errors : undefined
 
     return result

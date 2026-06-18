@@ -144,6 +144,12 @@ def print_keypoints(match: dict, path: Path) -> None:
     s = match.get("summary", {})
     print(f"  tokens:   {s.get('totalTokens','?')}  words: {s.get('wordCount','?')}  reading: {match.get('readingTime','?')}")
     print(f"  headings: {s.get('totalHeadings','?')}  links: {s.get('totalLinks','?')}")
+    fmt_parts = []
+    if s.get('boldCount'): fmt_parts.append(f"bold={s['boldCount']}")
+    if s.get('italicCount'): fmt_parts.append(f"italic={s['italicCount']}")
+    if s.get('bulletCount'): fmt_parts.append(f"bullets={s['bulletCount']}")
+    if fmt_parts:
+        print(f"  fmt:      {'  '.join(fmt_parts)}")
     for h in (match.get("keyHeadings") or [])[:8]:
         print(f"    {'#' * h.get('level', 1)} {h.get('text', '?')}")
     if match.get("metadata"):

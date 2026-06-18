@@ -8,7 +8,8 @@ export function extractKeyPoints(doc: AnalysisResult): object {
     fileName: doc.fileName, title: doc.headings[0]?.text || doc.fileName, level: doc.headings[0]?.level || 1,
     summary: {
       totalHeadings: doc.stats.totalHeadings, totalLinks: doc.stats.totalLinks, totalWikilinks: doc.stats.totalWikilinks,
-      totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount
+      totalTokens: doc.stats.tokens, wordCount: doc.stats.wordCount,
+      boldCount: doc.stats.boldCount ?? 0, italicCount: doc.stats.italicCount ?? 0, bulletCount: doc.stats.bulletCount ?? 0
     },
     keyHeadings: doc.headings.slice(0, 10).map((h, i) => ({
       level: h.level, text: h.text, line: h.line,

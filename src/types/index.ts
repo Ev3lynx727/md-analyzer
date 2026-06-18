@@ -45,6 +45,9 @@ export interface Stats {
   codeBlocks: number
   tables: number
   tokens: number
+  boldCount?: number
+  italicCount?: number
+  bulletCount?: number
   errors?: string[]
 }
 

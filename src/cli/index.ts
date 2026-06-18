@@ -20,7 +20,7 @@ const program = new Command()
 
 program
   .name('md-analyzer')
-  .description('Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points from .md files')
+  .description('Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, formatting counts, and key points from .md files')
   .version(pkgVersion, '--version, -v', 'Show version number')
   .arguments('[directory]')
   .option('--json', 'Output as JSON')

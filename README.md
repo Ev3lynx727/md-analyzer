@@ -171,21 +171,9 @@ md-analyzer . --lint-fragments --json
 
 ### Agent hook integration (pre-read)
 
-The `--keypoints` output powers a pre-read hook for OpenAI-compatible agents (opencode, kiro-cli). Before reading a file, the hook injects the structured overview so the LLM can decide what to read.
+The `--keypoints` output powers a pre-read hook for AI agent frameworks (opencode, kiro-cli). Before reading a file, the hook injects a structured overview so the LLM can decide what to read.
 
-```json
-// opencode.json / kiro-cli hook config
-{
-  "preToolUse": [
-    {
-      "matcher": { "tool_name": "read" },
-      "command": "uv run --project ~/.kiro/hooks python ~/.kiro/hooks/pre_read_md.py"
-    }
-  ]
-}
-```
-
-See [`python/pre_read.py`](./python/README.md) for the full hook implementation.
+See [`docs/INTEGRATION.md`](./docs/INTEGRATION.md) for setup guides, `md-analyzer install --hook`, and MCP integration.
 
 ---
 
