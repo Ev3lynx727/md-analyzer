@@ -2,10 +2,10 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { encodingForModel } from 'js-tiktoken'
 import { SKIP_DIRS } from '../utils/constants.js'
-import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractWikilinks, extractTables } from './extractors.js'
+import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractTables, extractWikilinks } from './extractors.js'
 import { countStats } from './counters.js'
-import { walkCodeBlocks, walkLinks, walkSetextHeadings, isMicromarkAvailable } from './micromark-walk.js'
-import { filterLinks, filterHeadings, mergeLinks, mergeSetextHeadings, countCodeBlocks } from './hybrid-merge.js'
+import { walkCodeBlocks, walkLinks, walkHeadings, walkTables, isMicromarkAvailable } from './micromark-walk.js'
+import { filterMicromarkLinks, filterMicromarkHeadings, filterMicromarkTables, countCodeBlocks } from './hybrid-merge.js'
 import type { AnalysisResult, SectionInfo } from '../types/index.js'
 
 export function scanMarkdownFiles(dir: string): { files: string[]; errors: string[] } {
@@ -96,27 +96,33 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
   }
 
   const { content: markdownContent } = extractFrontmatter(content)
+  const wikilinks = extractWikilinks(markdownContent)
 
-  const [regions, mmLinks, setext] = await Promise.all([
+  const [regions, mmLinks, mmHeadings, mmTables] = await Promise.all([
     walkCodeBlocks(markdownContent),
     walkLinks(markdownContent),
-    walkSetextHeadings(markdownContent)
+    walkHeadings(markdownContent),
+    walkTables(markdownContent)
   ])
 
-  if (regions && regions.length > 0) {
-    result.links = filterLinks(result.links, regions, markdownContent)
-    result.headings = filterHeadings(result.headings, regions, markdownContent)
-    result.stats.codeBlocks = countCodeBlocks(regions)
-  }
+  const safeRegions = regions ?? []
 
-  result.headings = mergeSetextHeadings(result.headings, setext)
-  result.sections = computeSections(markdownContent, result.headings)
-  result.stats.totalHeadings = result.headings.length
-
-  result.links = mergeLinks(result.links, mmLinks ?? [], markdownContent)
+  result.links = filterMicromarkLinks(mmLinks ?? [], safeRegions)
   result.stats.totalLinks = result.links.length
   result.stats.internalLinks = result.links.filter(l => l.isInternal).length
   result.stats.externalLinks = result.links.filter(l => !l.isInternal).length
+
+  result.headings = filterMicromarkHeadings(mmHeadings ?? [], safeRegions, markdownContent)
+  result.sections = computeSections(markdownContent, result.headings)
+  result.stats.totalHeadings = result.headings.length
+
+  result.tables = filterMicromarkTables(mmTables ?? [], safeRegions, markdownContent)
+  result.stats.tables = result.tables.length
+
+  result.wikilinks = wikilinks
+  result.stats.totalWikilinks = wikilinks.length
+
+  result.stats.codeBlocks = countCodeBlocks(regions)
   result.stats.errors = errors.length > 0 ? errors : undefined
 
   return result

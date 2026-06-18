@@ -33,6 +33,7 @@ export function extractFragmentMeta(metadata: Record<string, unknown> | null): F
   }
 }
 
+/** @deprecated Use walkHeadings from micromark-walk.js instead (token-accurate) */
 export function extractHeadings(content: string): Heading[] {
   const headings: Heading[] = []
   const headingRegex = /^(#{1,6})\s+(.+)$/gm
@@ -44,6 +45,7 @@ export function extractHeadings(content: string): Heading[] {
   return headings
 }
 
+/** @deprecated Use walkLinks from micromark-walk.js instead (token-accurate) */
 export function extractLinks(content: string): Link[] {
   const links: Link[] = []
   const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g
@@ -71,6 +73,7 @@ export function extractWikilinks(content: string): Wikilink[] {
   return wikilinks
 }
 
+/** @deprecated Use walkTables from micromark-walk.js instead (uses GFM spec) */
 export function extractTables(content: string): Table[] {
   const tables: Table[] = []
   const tableRegex = /\|(.+)\|\n\|[-:\s|]+\|\n((?:\|.+\|\n?)+)/g

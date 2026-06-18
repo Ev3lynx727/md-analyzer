@@ -13,7 +13,7 @@ export interface MicromarkLink {
   isReference: boolean
 }
 
-import type { Heading } from '../types/index.js'
+import type { Heading, Table } from '../types/index.js'
 
 interface MicromarkEvent {
   0: 'enter' | 'exit'
@@ -38,10 +38,11 @@ export async function isMicromarkAvailable(): Promise<boolean> {
   return mm !== false
 }
 
-function parseEvents(content: string): MicromarkEvent[] {
+function parseEvents(content: string, extensions?: any[]): MicromarkEvent[] {
   const mm: any = micromarkModule
+  const opts = extensions && extensions.length > 0 ? { extensions } : {}
   return mm.postprocess(
-    mm.parse().document().write(mm.preprocess()(content, 'utf-8', true))
+    mm.parse(opts).document().write(mm.preprocess()(content, 'utf-8', true))
   )
 }
 
@@ -154,46 +155,109 @@ function offsetToLine(content: string, offset: number): number {
   return line
 }
 
-export async function walkSetextHeadings(content: string): Promise<Heading[] | null> {
+export async function walkHeadings(content: string): Promise<Heading[] | null> {
   const mm = await getMicromark()
   if (!mm) return null
 
   try {
     const events = parseEvents(content)
     const headings: Heading[] = []
-
-    let currentText = ''
-    let currentLevel = 0
-    let currentStart = 0
+    let current: { level: number; text: string; start: number } | null = null
 
     for (const ev of events) {
       const token = ev[1]
       const slice = (t: typeof token): string =>
         content.slice(t.start.offset, t.end?.offset ?? t.start.offset)
 
-      if (ev[0] === 'enter' && token.type === 'setextHeadingText') {
-        currentText = slice(token)
-        currentStart = token.start.offset
-      }
-
-      if (ev[0] === 'enter' && token.type === 'setextHeadingLineSequence') {
-        currentLevel = slice(token).startsWith('=') ? 1 : 2
-      }
-
-      if (ev[0] === 'exit' && token.type === 'setextHeading') {
-        if (currentText && currentLevel > 0) {
-          headings.push({
-            level: currentLevel,
-            text: currentText.trim(),
-            line: offsetToLine(content, currentStart)
-          })
+      if (ev[0] === 'enter') {
+        if (token.type === 'setextHeadingText') {
+          current = { level: 0, text: slice(token), start: token.start.offset }
+        } else if (token.type === 'setextHeadingLineSequence') {
+          if (current) current.level = slice(token).startsWith('=') ? 1 : 2
+        } else if (token.type === 'atxHeadingSequence') {
+          current = { level: slice(token).length, text: '', start: token.start.offset }
+        } else if (token.type === 'atxHeadingText') {
+          if (current) current.text = slice(token)
         }
-        currentText = ''
-        currentLevel = 0
+      }
+
+      if (ev[0] === 'exit' && current && (token.type === 'atxHeading' || token.type === 'setextHeading')) {
+        headings.push({
+          level: current.level,
+          text: current.text.trim(),
+          line: offsetToLine(content, current.start)
+        })
+        current = null
       }
     }
 
-    return headings
+    return headings.length > 0 ? headings : null
+  } catch {
+    return null
+  }
+}
+
+export async function walkTables(content: string): Promise<Table[] | null> {
+  const mm = await getMicromark()
+  if (!mm) return null
+
+  try {
+    const gfm = await import('micromark-extension-gfm')
+    const events = parseEvents(content, [gfm.gfm()])
+    const tables: Table[] = []
+
+    let currentTable: { headers: string[]; rows: string[][] } | null = null
+    let inHead = false
+    let inBody = false
+    let currentRow: string[] | null = null
+    let currentCell: string | null = null
+
+    for (const ev of events) {
+      const token = ev[1]
+      const slice = (t: typeof token): string =>
+        content.slice(t.start.offset, t.end?.offset ?? t.start.offset)
+
+      if (ev[0] === 'enter') {
+        if (token.type === 'table') {
+          currentTable = { headers: [], rows: [] }
+        } else if (token.type === 'tableHead') {
+          inHead = true
+        } else if (token.type === 'tableBody') {
+          inBody = true
+        } else if (token.type === 'tableRow' && (inHead || inBody)) {
+          currentRow = []
+        } else if (token.type === 'tableHeader' && inHead) {
+          currentCell = ''
+        } else if (token.type === 'tableData' && inBody) {
+          currentCell = ''
+        } else if (token.type === 'tableContent' && currentCell !== null) {
+          currentCell = slice(token)
+        }
+      }
+
+      if (ev[0] === 'exit') {
+        if (token.type === 'tableHeader' && inHead && currentCell !== null) {
+          if (currentRow) currentRow.push(currentCell)
+          currentCell = null
+        } else if (token.type === 'tableData' && inBody && currentCell !== null) {
+          if (currentRow) currentRow.push(currentCell)
+          currentCell = null
+        } else if (token.type === 'tableRow' && currentRow !== null) {
+          if (inHead) currentTable!.headers = currentRow
+          else if (inBody) currentTable!.rows.push(currentRow)
+          currentRow = null
+        } else if (token.type === 'tableHead') {
+          inHead = false
+        } else if (token.type === 'tableBody') {
+          inBody = false
+        } else if (token.type === 'table' && currentTable) {
+          tables.push(currentTable)
+          currentTable = null
+        }
+      }
+    }
+
+    return tables.length > 0 ? tables : null
   } catch {
     return null
   }
