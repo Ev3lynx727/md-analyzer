@@ -9,20 +9,22 @@
 
 ---
 
-## Dependency Audit — 2026-06-14
+## Dependency Audit — 2026-06-18
 
 | Dependency | Type | Integration | Effect % | Files | Verdict |
 |------------|------|-------------|----------|-------|---------|
-| js-tiktoken | dep | Module | 100% | 1/1 | Core |
-| js-yaml | dep | Module | 100% | 1/1 | Core |
-| micromark | dep | Module | 100% | 4/4 | Core — walkCodeBlocks, walkLinks, walkHeadings, walkTables; v4.0.2 |
-| micromark-extension-gfm | dep | Module | 100% | 1/1 | Core — walkTables via GFM spec |
-| @eslint/js | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
-| @types/js-yaml | devDep | Config | 100% | 1/1 | Core (tsconfig) |
-| @types/node | devDep | Config | 100% | 1/1 | Core (tsconfig) — pinned to ^20.0.0, compiles clean |
-| eslint | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
-| typescript | devDep | Config | 100% | 1/1 | Core (tsconfig build) |
-| typescript-eslint | devDep | Config | 100% | 1/1 | Core (eslint.config.mjs) |
+| commander | dep | Module | 6% | 1/16 | Peripheral — CLI entry |
+| js-tiktoken | dep | Module | 12% | 2/16 | Significant — counters + analyzer |
+| js-yaml | dep | Module | 6% | 1/16 | Peripheral — frontmatter extract |
+| micromark | dep | Module | 6% | 1/16 | Peripheral — token stream walker |
+| micromark-extension-gfm | dep | Module | 6% | 1/16 | Peripheral — GFM table parser |
+| zod | dep | Module | 12% | 2/16 | Significant — schema validation |
+| @eslint/js | devDep | Config | 6% | 1/16 | Peripheral (eslint.config.mjs) |
+| @types/js-yaml | devDep | Config | 0% | 0/16 | Config — tsconfig types |
+| @types/node | devDep | Config | 0% | 0/16 | Config — tsconfig types |
+| eslint | devDep | Config | 6% | 1/16 | Peripheral (eslint.config.mjs) |
+| typescript | devDep | Config | 0% | 0/16 | Config — build tool |
+| typescript-eslint | devDep | Config | 6% | 1/16 | Peripheral (eslint.config.mjs) |
 
 ### Blocked Items
 
@@ -31,16 +33,16 @@
 | 1 | ~~Remove micromark from deps~~ | ✅ Done | micromark integrated in 4 phases (Ph1→Ph4): code blocks, links/images, headings, tables | — | — | — |
 | 2 | ~~Fix @types/node compat with TS 6.0.3~~ | ✅ Done | Pinned to `^20.0.0` (v20.19.43), skipLibCheck enabled, compiles clean | — | — | — |
 
-## Changelog Audit Trail — 2026-06-14
+## Changelog Audit Trail — 2026-06-18
 
 | Check | Status | Detail |
 |-------|--------|--------|
-| CHANGELOG.md exists | ✅ Yes | 4 versions from 0.1.0 to 0.1.3 |
-| Last version | ✅ 0.1.3 | 2026-06-08 |
-| Git history clean | ✅ Yes | Monorepo noise removed via `main-clean` rewrite. 5 clean commits. |
-| Gap >30d between versions | ✅ None | Max gap: 14 days (0.1.2→0.1.3) |
+| CHANGELOG.md exists | ✅ Yes | 7 versions from 0.1.0 to 0.2.0 |
+| Last version | ✅ 0.2.0 | 2026-06-18 |
+| Git history clean | ✅ Yes | 20 commits on develop |
+| Gap >30d between versions | ✅ None | Max gap: 14 days |
 
-## Open Pull Requests — 2026-06-14
+## Open Pull Requests — 2026-06-18
 
 | Check | Result |
 |-------|--------|
@@ -48,16 +50,7 @@
 | Open PRs | 0 — no open pull requests |
 | gh CLI | ✅ Authenticated |
 
-## Issues Audit Trail — 2026-06-14
-
-### Fix Patterns in Git History
-
-| SHA | Date | Message | Status |
-|-----|------|--------|--------|
-| 40cf933 | 2026-06-09 | fix: end-of-file fix by pre-commit hook | Resolved |
-| 19b4606 | 2026-05-04 | fix: clean up corrupted README.md | Resolved |
-| f6cb3ed | 2026-05-04 | fix(ci): include package-lock.json | Resolved |
-| cf9e01a | 2026-06-09 | v0.3.1 fix --assemble date parsing + ordering + missing dep warning | Resolved |
+## Issues Audit Trail — 2026-06-18
 
 ### Source Issues
 
@@ -80,13 +73,7 @@
 | not implemented | 0 | ✅ None |
 | limitation | 0 | ✅ None |
 
-### Open Issues
-
-| # | Issue | Impact | Workaround |
-|---|-------|--------|------------|
-| 1 | ~~@types/node v25.9.3 incompatible with TS 6.0.3~~ | RESOLVED — pinned to `^20.0.0`, `skipLibCheck: true`, builds clean | — |
-
-## Implementation Audit Trail — 2026-06-14
+## Implementation Audit Trail — 2026-06-18
 
 ### Documentation Claims
 
@@ -125,8 +112,4 @@ No mismatches found — all documentation claims are consistent with source stat
 | 8 | Web UI for document graphs | ⬜ | Separate project | Visual exploration of doc topology | CLI-only, no visual tooling | Svelte/React frontend |
 | 9 | Vector DB integration | ⬜ | External service needed | Semantic search across docs | Keyword search only, no embeddings | Upsert to Pinecone/Chroma |
 
-## Known Issues
 
-| # | Issue | Impact | Workaround |
-|---|-------|--------|-------------|
-| 1 | ~~@types/node v25.9.3 incompatible with TS 6.0.3~~ | RESOLVED — `@types/node` pinned to `^20.0.0` (v20.19.43) compiles clean under TS 5.9.3 with `skipLibCheck: true` | — |
