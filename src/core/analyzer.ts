@@ -4,8 +4,8 @@ import { encodingForModel } from 'js-tiktoken'
 import { SKIP_DIRS } from '../utils/constants.js'
 import { extractFrontmatter, extractFragmentMeta, extractHeadings, extractLinks, extractWikilinks, extractTables } from './extractors.js'
 import { countStats } from './counters.js'
-import { walkCodeBlocks, walkLinks, isMicromarkAvailable } from './micromark-walk.js'
-import { filterLinks, filterHeadings, mergeLinks, countCodeBlocks } from './hybrid-merge.js'
+import { walkCodeBlocks, walkLinks, walkSetextHeadings, isMicromarkAvailable } from './micromark-walk.js'
+import { filterLinks, filterHeadings, mergeLinks, mergeSetextHeadings, countCodeBlocks } from './hybrid-merge.js'
 import type { AnalysisResult, SectionInfo } from '../types/index.js'
 
 export function scanMarkdownFiles(dir: string): { files: string[]; errors: string[] } {
@@ -97,18 +97,21 @@ export async function analyzeFileWithMicromark(filePath: string): Promise<Analys
 
   const { content: markdownContent } = extractFrontmatter(content)
 
-  const [regions, mmLinks] = await Promise.all([
+  const [regions, mmLinks, setext] = await Promise.all([
     walkCodeBlocks(markdownContent),
-    walkLinks(markdownContent)
+    walkLinks(markdownContent),
+    walkSetextHeadings(markdownContent)
   ])
 
   if (regions && regions.length > 0) {
     result.links = filterLinks(result.links, regions, markdownContent)
     result.headings = filterHeadings(result.headings, regions, markdownContent)
-    result.sections = computeSections(markdownContent, result.headings)
     result.stats.codeBlocks = countCodeBlocks(regions)
-    result.stats.totalHeadings = result.headings.length
   }
+
+  result.headings = mergeSetextHeadings(result.headings, setext)
+  result.sections = computeSections(markdownContent, result.headings)
+  result.stats.totalHeadings = result.headings.length
 
   result.links = mergeLinks(result.links, mmLinks ?? [], markdownContent)
   result.stats.totalLinks = result.links.length

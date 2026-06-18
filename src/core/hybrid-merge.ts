@@ -68,3 +68,13 @@ export function mergeLinks(regexLinks: Link[], micromarkLinks: MicromarkLink[], 
   result.push(...extras)
   return result
 }
+
+export function mergeSetextHeadings(regexHeadings: Heading[], setextHeadings: Heading[] | null): Heading[] {
+  if (!setextHeadings || setextHeadings.length === 0) return regexHeadings
+
+  const existingLines = new Set(regexHeadings.map(h => h.line))
+
+  const newHeadings = setextHeadings.filter(sh => !existingLines.has(sh.line))
+
+  return [...regexHeadings, ...newHeadings].sort((a, b) => a.line - b.line)
+}

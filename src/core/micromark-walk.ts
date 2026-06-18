@@ -13,6 +13,8 @@ export interface MicromarkLink {
   isReference: boolean
 }
 
+import type { Heading } from '../types/index.js'
+
 interface MicromarkEvent {
   0: 'enter' | 'exit'
   1: { type: string; start: { offset: number }; end?: { offset: number } }
@@ -139,6 +141,59 @@ export async function walkLinks(content: string): Promise<MicromarkLink[] | null
     }
 
     return links
+  } catch {
+    return null
+  }
+}
+
+function offsetToLine(content: string, offset: number): number {
+  let line = 1
+  for (let i = 0; i < offset && i < content.length; i++) {
+    if (content[i] === '\n') line++
+  }
+  return line
+}
+
+export async function walkSetextHeadings(content: string): Promise<Heading[] | null> {
+  const mm = await getMicromark()
+  if (!mm) return null
+
+  try {
+    const events = parseEvents(content)
+    const headings: Heading[] = []
+
+    let currentText = ''
+    let currentLevel = 0
+    let currentStart = 0
+
+    for (const ev of events) {
+      const token = ev[1]
+      const slice = (t: typeof token): string =>
+        content.slice(t.start.offset, t.end?.offset ?? t.start.offset)
+
+      if (ev[0] === 'enter' && token.type === 'setextHeadingText') {
+        currentText = slice(token)
+        currentStart = token.start.offset
+      }
+
+      if (ev[0] === 'enter' && token.type === 'setextHeadingLineSequence') {
+        currentLevel = slice(token).startsWith('=') ? 1 : 2
+      }
+
+      if (ev[0] === 'exit' && token.type === 'setextHeading') {
+        if (currentText && currentLevel > 0) {
+          headings.push({
+            level: currentLevel,
+            text: currentText.trim(),
+            line: offsetToLine(content, currentStart)
+          })
+        }
+        currentText = ''
+        currentLevel = 0
+      }
+    }
+
+    return headings
   } catch {
     return null
   }
