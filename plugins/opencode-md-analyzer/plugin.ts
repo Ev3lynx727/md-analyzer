@@ -61,10 +61,79 @@ async function loadConfig(): Promise<PluginConfig> {
   }
 }
 
-const RESULT_CACHE = new Map<string, CachedResult>()
+const MIN_LINE_LIMIT = 20
+const CACHE_MAX = 50
+const CACHE_TTL_MS = 300_000
+
+interface CacheEntry {
+  result: CachedResult
+  mtimeMs: number
+  cachedAt: number
+}
+
+const cache = new Map<string, CacheEntry>()
+const accessOrder: string[] = []
+
+function touch(path: string): void {
+  const idx = accessOrder.indexOf(path)
+  if (idx >= 0) accessOrder.splice(idx, 1)
+  accessOrder.push(path)
+}
+
+function evictOne(): void {
+  while (accessOrder.length >= CACHE_MAX) {
+    const stale = accessOrder.shift()
+    if (stale) cache.delete(stale)
+  }
+}
+
+function cacheGet(path: string): CachedResult | undefined {
+  const entry = cache.get(path)
+  if (!entry) return
+
+  const age = Date.now() - entry.cachedAt
+  if (age > CACHE_TTL_MS) {
+    cache.delete(path)
+    const idx = accessOrder.indexOf(path)
+    if (idx >= 0) accessOrder.splice(idx, 1)
+    return
+  }
+
+  try {
+    const stat = Bun.stat(path)
+    if (stat.mtimeMs > entry.mtimeMs) {
+      cache.delete(path)
+      const idx = accessOrder.indexOf(path)
+      if (idx >= 0) accessOrder.splice(idx, 1)
+      return
+    }
+  } catch {
+    cache.delete(path)
+    const idx = accessOrder.indexOf(path)
+    if (idx >= 0) accessOrder.splice(idx, 1)
+    return
+  }
+
+  touch(path)
+  return entry.result
+}
+
+function cacheSet(path: string, result: CachedResult): void {
+  evictOne()
+  let mtimeMs = 0
+  try { mtimeMs = Bun.stat(path).mtimeMs } catch {}
+  cache.set(path, { result, mtimeMs, cachedAt: Date.now() })
+  touch(path)
+}
 
 function getPath(args: Record<string, unknown>): string | undefined {
   return (args?.filePath ?? args?.path) as string | undefined
+}
+
+function isSmallRead(args: Record<string, unknown> | undefined): boolean {
+  if (!args) return false
+  const limit = args?.limit as number | undefined
+  return typeof limit === "number" && limit < MIN_LINE_LIMIT
 }
 
 function isNamedFile(path: string, names: Set<string>): boolean {
@@ -155,14 +224,15 @@ export const MdAnalyzerPlugin: Plugin = async ({ $ }) => {
       const path = getPath(args)
       if (!path || !isWhitelisted(path, cfg)) return
 
-      if (RESULT_CACHE.has(path)) return
+      if (isSmallRead(args)) return
+      if (cacheGet(path)) return
 
       try {
         const result = await $`md-analyzer ${path} --keypoints --json`.quiet().nothrow()
         const raw = String(result.stdout).trim()
         if (raw) {
           const parsed = parseKeypoints(raw)
-          if (parsed) RESULT_CACHE.set(path, parsed)
+          if (parsed) cacheSet(path, parsed)
         }
       } catch {
         // md-analyzer unavailable — read proceeds normally
@@ -174,9 +244,11 @@ export const MdAnalyzerPlugin: Plugin = async ({ $ }) => {
       if (tool !== "read" && tool !== "filesystem_read_text_file") return
       if (!output?.output) return
 
-      const path = getPath((input?.args ?? {}) as Record<string, unknown>)
+      const inputArgs = (input?.args ?? {}) as Record<string, unknown>
+      const path = getPath(inputArgs)
       if (!path) return
-      const cached = RESULT_CACHE.get(path)
+      if (isSmallRead(inputArgs)) return
+      const cached = cacheGet(path)
       if (!cached) return
 
       const named = isNamedFile(path, nameSet)
