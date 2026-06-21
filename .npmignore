@@ -7,7 +7,6 @@ node_modules/
 
 # Development files
 tsconfig.json
-__pycache__/
 *.map
 
 # Logs
@@ -21,6 +20,9 @@ langgraph_integration.py
 
 # Docs (available in separate package or repo)
 docs/
+BACKLOG.md
+CE.md
+CHANGELOG.md
 
 # Test files
 *.test.js
@@ -44,6 +46,19 @@ docs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Plugin & integration files (not part of library)
+plugins/
+python/
+embedded-docs/
+
+# Stale root build artifacts (use dist/ instead)
+/md-analyzer.js
+/md-analyzer.d.ts
+/md-analyzer.js.map
+
+# Lint/CI config (not runtime)
+eslint.config.mjs
 
 # Temp
 *.tmp
