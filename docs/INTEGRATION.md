@@ -139,7 +139,7 @@ Registers md-analyzer as an MCP tool server so agents can call it on demand rath
 | opencode | Plugin (`tool.execute.before` + `tool.execute.after`) | `~/.config/opencode/plugins/<name>.ts` | ✅ Plugin (working) |
 | openclaw | `before_tool_call` TS handler | `~/.openclaw/openclaw.json` → `hooks.internal.entries` | 🔲 Planned |
 | kiro-cli | `preToolUse` | `~/.kiro/agents/agent_config.json` → `hooks.preToolUse` | ✅ Manual |
-| hermes | `hooks: {}` (map) | `~/.hermes/config.yaml` | 🔲 Manual (untested) |
+| hermes | Python plugin (`plugin.yaml` + `__init__.py`) | `~/.hermes/plugins/<name>/plugin.yaml` | 🔲 Template available |
 | Cline | `preToolUse` | `cline.json` | 🔲 Manual (untested) |
 | Claude Code | Hooks | `~/.claude/settings.json` | 🔲 Planned |
 | Continue | `preToolUse` | `config.json` | 🔲 Planned |
@@ -235,9 +235,53 @@ The handler receives tool calls before execution (`before_tool_call`) and can mo
 
 #### hermes
 
-Hermes supports hooks via a `hooks: {}` map in `~/.hermes/config.yaml`. The hook format expects key-value entries. Currently has `hooks_auto_accept: false` (requires manual approval). No hooks are configured by default.
+Hermes uses a Python plugin system. Plugins live in `~/.hermes/plugins/<name>/` with a `plugin.yaml` manifest and an `__init__.py` implementation.
 
-The `redact_pii: false` setting in `config.yaml` controls PII redaction independently — it is not a separate agent framework.
+**`plugin.yaml`:**
+```yaml
+name: md-analyzer
+version: 0.1.0
+description: "Token-aware Markdown pre-read hook"
+pip_dependencies:
+  - pyyaml>=6.0
+hooks:
+  - before_tool_call
+```
+
+**`__init__.py`** intercepts `read` tool calls, runs `md-analyzer --keypoints --json` via subprocess, and injects the outline into the file content:
+
+```python
+import subprocess, json, os
+from pathlib import Path
+
+def before_tool_call(tool: str, input_data: dict) -> dict:
+    if tool != "read":
+        return input_data
+    file_path = input_data.get("path", "")
+    if not file_path.endswith((".md", ".txt")):
+        return input_data
+    try:
+        result = subprocess.run(
+            ["md-analyzer", file_path, "--keypoints", "--json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        docs = json.loads(result.stdout)
+        if docs:
+            outline = format_outline(docs[0])
+            input_data["content"] = outline + "\n\n── file content ──\n\n" + input_data.get("content", "")
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        pass
+    return input_data
+```
+
+Enable the plugin in `~/.hermes/config.yaml`:
+```yaml
+plugins:
+  enabled:
+    - md-analyzer
+```
+
+A working template is at `~/.hermes/plugins/md-analyzer/` with full `plugin.yaml` + `__init__.py` and env-var configuration for binary path, token limits, whitelist, and exclude paths.
 
 ---
 
