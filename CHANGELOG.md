@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.2.2] - 2026-06-30
+
+### Changed
+
+- **Storage paths migrated to XDG-compliant persistent directories** (`89a8ba0`)
+  - Token tracking moved from `/tmp/md-analyzer-session.json` to `~/.local/share/md-analyzer/tokens/md-analyzer-session.json`
+  - Run logs moved from `./log/` to `~/.local/state/md-analyzer/log/`
+  - Data now persists across system reboots (previously volatile in `/tmp`)
+  - Follows Linux FHS/XDG Base Directory Specification
+  - `saveSession()` now automatically creates parent directories with recursive `mkdir`
+  - Environment variable overrides: `STATE_DIR` and `LOG_DIR` for custom paths
+  - Updated `.gitignore` to remove legacy `log/` entry
+
+### Fixed
+
+- Session data no longer lost on system reboot (XDG persistent storage)
+- File permission handling intact; automatic directory creation prevents `FileNotFoundError`
+- Error handling in `saveSession()` with try-catch prevents crashes
+
+### Documentation
+
+- Updated README.md with new XDG storage paths and environment variables
+- Added persistence notes to Session File and Run Logs sections
+- Updated Architecture diagram to reflect persistent storage locations
+- Added storage path documentation to Environment Variables section
+
 ## [0.2.0] - 2026-06-18
 
 ### Added
