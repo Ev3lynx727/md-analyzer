@@ -23,10 +23,6 @@ __pycache__/
 *.egg-info/
 *.egg
 
-# Logs
-log/
-*.log
-
 # OS
 .DS_Store
 Thumbs.db
@@ -39,3 +35,4 @@ Thumbs.db
 # Generated session files
 session-*.json
 md-fabrication/
+

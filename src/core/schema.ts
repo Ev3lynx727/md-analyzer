@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import * as path from 'path'
+import * as os from 'os'
+
+const defaultSessionFile = path.join(os.homedir(), '.local', 'share', 'md-analyzer', 'tokens', 'md-analyzer-session.json')
 
 export const CliOptions = z.object({
   directory: z.string().optional(),
@@ -24,7 +28,7 @@ export const AnalyzerConfigSchema = z.object({
   default_budget: z.number().int().positive().default(100000),
   max_tokens: z.number().int().positive().default(200000),
   max_results_default: z.number().int().nonnegative().default(20),
-  session_file: z.string().default('/tmp/md-analyzer-session.json'),
+  session_file: z.string().default(defaultSessionFile),
 })
 
 export type AnalyzerConfig = z.infer<typeof AnalyzerConfigSchema>

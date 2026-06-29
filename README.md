@@ -11,10 +11,10 @@
 | Feature | Description |
 |---------|-------------|
 | **Keypoints** | Single-shot document overview (ideal for agents) |
-| **Token Tracking** | Session-based token budget with `/tmp/md-analyzer-session.json` |
+| **Token Tracking** | Session-based token budget with persistent storage (`~/.local/share/md-analyzer/tokens/md-analyzer-session.json`) |
 | **Graph** | Document relationship topology (backlinks, orphans) |
 | **Search** | Keyword search with relevance ranking |
-| **Logs** | Structured JSON logs in `log/{sessionId}.json` |
+| **Logs** | Structured JSON logs in `~/.local/state/md-analyzer/log/{sessionId}.json` |
 
 ### Why md-analyzer?
 
@@ -226,6 +226,8 @@ max_results_default = 0
 | `MD_ANALYZER_MAX_TOKENS` | Max token limit | `200000` |
 | `MD_ANALYZER_DEFAULT_BUDGET` | Default budget | `100000` |
 | `MD_ANALYZER_MAX_RESULTS` | Max results | `20` |
+| `STATE_DIR` | Token tracking storage directory | `~/.local/share/md-analyzer` |
+| `LOG_DIR` | Run logs storage directory | `~/.local/state/md-analyzer/log` |
 
 ### Priority Chain
 
@@ -245,7 +247,9 @@ max_results_default=0 (hooks.toml, default: no limit)
 
 ### Session File
 
-Location: `/tmp/md-analyzer-session.json`
+Location: `~/.local/share/md-analyzer/tokens/md-analyzer-session.json` (XDG Data Home)
+
+Persistent storage survives system reboots. Override with `STATE_DIR` environment variable.
 
 ```json
 {
@@ -259,7 +263,9 @@ Location: `/tmp/md-analyzer-session.json`
 
 ### Run Logs
 
-Location: `{project}/log/{sessionId}.json`
+Location: `~/.local/state/md-analyzer/log/{sessionId}.json` (XDG State Home)
+
+Persistent storage survives system reboots. Override with `LOG_DIR` environment variable.
 
 ```json
 [
@@ -296,18 +302,21 @@ md-analyzer/
 │   │   ├── graph.ts          # Document relationship graph
 │   │   ├── search.ts         # Keyword search + relevance
 │   │   ├── health.ts         # Fragment health checks
-│   │   └── session.ts        # Token budget tracking
+│   │   └── session.ts        # Token budget tracking → XDG persistent storage
 │   ├── types/index.ts        # Shared TypeScript types
-│   ├── utils/constants.ts    # SKIP_DIRS, etc.
+│   ├── utils/constants.ts    # SKIP_DIRS, SESSION_FILE, LOG_DIR (XDG paths)
 │   └── utils/config.ts       # TOML config parser
 ├── dist/                     # Compiled output
 ├── hooks.toml                # Configuration
-├── log/                      # Run logs
 ├── python/                   # Agent hook integration
 │   ├── pre_read.py
 │   └── README.md
 └── embedded-docs/            # Sample documents for testing
 ```
+
+**Storage:**
+- **Session tokens:** `~/.local/share/md-analyzer/tokens/` (XDG_DATA_HOME)
+- **Run logs:** `~/.local/state/md-analyzer/log/` (XDG_STATE_HOME)
 
 ### Key Functions
 
