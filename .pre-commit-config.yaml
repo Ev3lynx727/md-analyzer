@@ -11,34 +11,14 @@ repos:
 
   - repo: local
     hooks:
-      - id: md-analyzer-typecheck
-        name: md-analyzer typecheck
-        entry: bash -c 'cd md-analyzer && npx tsc --noEmit --project tsconfig.json'
+      - id: typecheck
+        name: typecheck
+        entry: bash -c 'npm run typecheck'
         language: system
-        files: ^md-analyzer/
-        types: [text]
         pass_filenames: false
 
-      - id: md-analyzer-lint
-        name: md-analyzer lint
-        entry: bash -c 'cd md-analyzer && npx eslint src/'
+      - id: lint
+        name: lint
+        entry: bash -c 'npm run lint'
         language: system
-        files: ^md-analyzer/
-        types: [text]
-        pass_filenames: false
-
-      - id: md-fabrication-typecheck
-        name: md-fabrication typecheck
-        entry: bash -c 'cd md-fabrication && npx tsc --noEmit --project tsconfig.json'
-        language: system
-        files: ^md-fabrication/
-        types: [text]
-        pass_filenames: false
-
-      - id: md-fabrication-lint
-        name: md-fabrication lint
-        entry: bash -c 'cd md-fabrication && npx eslint src/'
-        language: system
-        files: ^md-fabrication/
-        types: [text]
         pass_filenames: false
