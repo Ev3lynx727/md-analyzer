@@ -11,10 +11,10 @@
 | Feature | Description |
 |---------|-------------|
 | **Keypoints** | Single-shot document overview (ideal for agents) |
-| **Token Tracking** | Session-based token budget with `/tmp/md-analyzer-session.json` |
+| **Token Tracking** | Session-based token budget with persistent storage (`~/.local/share/md-analyzer/tokens/md-analyzer-session.json`) |
 | **Graph** | Document relationship topology (backlinks, orphans) |
 | **Search** | Keyword search with relevance ranking |
-| **Logs** | Structured JSON logs in `log/{sessionId}.json` |
+| **Logs** | Structured JSON logs in `~/.local/state/md-analyzer/log/{sessionId}.json` |
 
 ### Why md-analyzer?
 
@@ -45,8 +45,10 @@ npm --version   # Should be >= 8.0.0
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `micromark` | ^4.0.0 | Markdown parsing |
+| `micromark` | ^4.0.0 | Token-stream Markdown parsing |
+| `micromark-extension-gfm` | ^3.0.0 | GFM tables via micromark |
 | `js-tiktoken` | ^1.0.0 | GPT token counting |
+| `js-yaml` | ^4.1.0 | Frontmatter YAML parsing |
 
 ---
 
@@ -71,7 +73,7 @@ npm run build
 ### Quick test
 
 ```bash
-node md-analyzer.js . --keypoints --json
+node dist/cli/index.js . --keypoints --json
 ```
 
 ---
@@ -80,16 +82,18 @@ node md-analyzer.js . --keypoints --json
 
 ### Basic CLI
 
+Accepts a `.md` file or a directory of `.md` files.
+
 ```bash
 # With npx (no install required)
-npx @ev3lynx/md-analyzer <directory> [options]
+npx @ev3lynx/md-analyzer <file|directory> [options]
 
 # After global install
 npm install -g @ev3lynx/md-analyzer
-md-analyzer <directory> [options]
+md-analyzer <file|directory> [options]
 
 # From source (development)
-node md-analyzer.js <directory> [options]
+node dist/cli/index.js <file|directory> [options]
 ```
 
 ### Options
@@ -113,8 +117,11 @@ node md-analyzer.js <directory> [options]
 ### Examples
 
 ```bash
-# Quick overview (single-shot for agents)
-npx @ev3lynx/md-analyzer /path/to/docs --keypoints --json
+# Quick overview — single file
+md-analyzer path/to/doc.md --keypoints --json
+
+# Quick overview — entire directory
+md-analyzer /path/to/docs --keypoints --json
 
 # Search with ranking
 md-analyzer . --search "task lifecycle" --rank --json
@@ -164,21 +171,9 @@ md-analyzer . --lint-fragments --json
 
 ### Agent hook integration (pre-read)
 
-The `--keypoints` output powers a pre-read hook for OpenAI-compatible agents (opencode, kiro-cli). Before reading a file, the hook injects the structured overview so the LLM can decide what to read.
+The `--keypoints` output powers a pre-read hook for AI agent frameworks (opencode, kiro-cli). Before reading a file, the hook injects a structured overview so the LLM can decide what to read.
 
-```json
-// opencode.json / kiro-cli hook config
-{
-  "preToolUse": [
-    {
-      "matcher": { "tool_name": "read" },
-      "command": "uv run --project ~/.kiro/hooks python ~/.kiro/hooks/pre_read_md.py"
-    }
-  ]
-}
-```
-
-See [`python/pre_read.py`](./python/README.md) for the full hook implementation.
+See [`docs/INTEGRATION.md`](./docs/INTEGRATION.md) for setup guides, `md-analyzer install --hook`, and MCP integration.
 
 ---
 
@@ -226,11 +221,13 @@ max_results_default = 0
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MD_ANALYZER_PATH` | Path to md-analyzer.js | `md-analyzer.js` |
+| `MD_ANALYZER_PATH` | Path to compiled CLI entry | `dist/cli/index.js` |
 | `MD_ANALYZER_DEFAULT_DIR` | Default directory | `.` |
 | `MD_ANALYZER_MAX_TOKENS` | Max token limit | `200000` |
 | `MD_ANALYZER_DEFAULT_BUDGET` | Default budget | `100000` |
 | `MD_ANALYZER_MAX_RESULTS` | Max results | `20` |
+| `STATE_DIR` | Token tracking storage directory | `~/.local/share/md-analyzer` |
+| `LOG_DIR` | Run logs storage directory | `~/.local/state/md-analyzer/log` |
 
 ### Priority Chain
 
@@ -250,7 +247,9 @@ max_results_default=0 (hooks.toml, default: no limit)
 
 ### Session File
 
-Location: `/tmp/md-analyzer-session.json`
+Location: `~/.local/share/md-analyzer/tokens/md-analyzer-session.json` (XDG Data Home)
+
+Persistent storage survives system reboots. Override with `STATE_DIR` environment variable.
 
 ```json
 {
@@ -264,7 +263,9 @@ Location: `/tmp/md-analyzer-session.json`
 
 ### Run Logs
 
-Location: `{project}/log/{sessionId}.json`
+Location: `~/.local/state/md-analyzer/log/{sessionId}.json` (XDG State Home)
+
+Persistent storage survives system reboots. Override with `LOG_DIR` environment variable.
 
 ```json
 [
@@ -291,39 +292,63 @@ Location: `{project}/log/{sessionId}.json`
 ```
 md-analyzer/
 ├── src/
-│   └── md-analyzer.ts      # TypeScript source
-├── md-analyzer.js          # Compiled output
-├── md-analyzer.d.ts        # Type declarations
-├── hooks.toml              # Configuration
-├── log/                    # Run logs
-├── python/                 # Agent hook integration
+│   ├── cli/index.ts         # CLI entry (file or directory)
+│   ├── core/
+│   │   ├── analyzer.ts       # Orchestrator — sync+async paths
+│   │   ├── micromark-walk.ts # Token-stream walkers (primary)
+│   │   ├── hybrid-merge.ts   # Code-block region filtering
+│   │   ├── extractors.ts     # Regex fallbacks (frontmatter, wikilinks)
+│   │   ├── counters.ts       # Token/word/char counting
+│   │   ├── graph.ts          # Document relationship graph
+│   │   ├── search.ts         # Keyword search + relevance
+│   │   ├── health.ts         # Fragment health checks
+│   │   └── session.ts        # Token budget tracking → XDG persistent storage
+│   ├── types/index.ts        # Shared TypeScript types
+│   ├── utils/constants.ts    # SKIP_DIRS, SESSION_FILE, LOG_DIR (XDG paths)
+│   └── utils/config.ts       # TOML config parser
+├── dist/                     # Compiled output
+├── hooks.toml                # Configuration
+├── python/                   # Agent hook integration
 │   ├── pre_read.py
 │   └── README.md
-└── embedded-docs/          # Sample documents for testing
+└── embedded-docs/            # Sample documents for testing
 ```
+
+**Storage:**
+- **Session tokens:** `~/.local/share/md-analyzer/tokens/` (XDG_DATA_HOME)
+- **Run logs:** `~/.local/state/md-analyzer/log/` (XDG_STATE_HOME)
 
 ### Key Functions
 
-| Function | Description |
-|----------|-------------|
-| `extractFrontmatter()` | YAML metadata extraction |
-| `extractHeadings()` | Parse H1-H6 structure |
-| `extractLinks()` | Internal/external link analysis |
-| `extractTables()` | Markdown table parsing |
-| `scanMarkdownFiles()` | Recursive directory scanner |
-| `buildGraph()` | Document relationship topology |
-| `extractKeyPoints()` | Single-shot overview |
-| `loadSession()` / `saveSession()` | Token budget tracking |
+| Function | Micromark (primary) | Regex (fallback) |
+|----------|-------------------|-------------------|
+| `extractFrontmatter()` | — | ✅ stays on regex |
+| `walkHeadings()` | ✅ ATX + setext in one pass | `extractHeadings()` *(deprecated)* |
+| `walkLinks()` | ✅ inline, autolink, reference, image | `extractLinks()` *(deprecated)* |
+| `walkTables()` | ✅ via GFM spec | `extractTables()` *(deprecated)* |
+| `walkCodeBlocks()` | ✅ codeFenced + codeIndented regions | — |
+| `extractWikilinks()` | — | ✅ stays on regex |
+| `analyzeFileWithMicromark()` | ✅ Hybrid orchestrator | `analyzeFile()` sync fallback |
+| `scanMarkdownFiles()` | — | ✅ Recursive directory scanner |
+| `buildGraph()` | — | ✅ Document relationship topology |
+| `extractKeyPoints()` | — | ✅ Single-shot overview |
+| `loadSession()` / `saveSession()` | — | ✅ Token budget tracking |
 
 ---
 
 ## Error Handling
 
-| Error | Description |
-|-------|-------------|
-| `permission_denied` | Skip inaccessible directories |
-| `file_read_error` | Return partial results |
-| `token_count_fallback` | Use `charCount/4` estimation |
+| Error | Description | Recovery |
+|-------|-------------|----------|
+| `permission_denied` | Cannot read directory | Skip, continue scan |
+| `file_read_error` | Cannot read file | Empty result with error |
+| `path_not_found` | CLI argument file/dir doesn't exist | Empty results `[]` |
+| `micromark_unavailable` | ESM import failure | Automatic regex fallback |
+| `micromark_pipeline_failed` | Micromark parse crash | Automatic regex fallback |
+| `walkLinks_failed` | Link token walker error | Empty link list (regex fallback for that field) |
+| `walkHeadings_failed` | Heading token walker error | Empty heading list (regex fallback) |
+| `walkTables_failed` | Table parse error | Empty table list (regex fallback) |
+| `token_count_fallback` | tiktoken unavailable | Estimate via `charCount / 4` |
 
 ---
 

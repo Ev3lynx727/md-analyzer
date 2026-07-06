@@ -1,4 +1,5 @@
 import * as fs from 'fs'
+import * as path from 'path'
 import { SESSION_FILE } from '../utils/constants.js'
 import type { AnalysisResult, SessionStats } from '../types/index.js'
 
@@ -12,7 +13,13 @@ export function loadSession(): SessionStats {
 }
 
 export function saveSession(session: SessionStats): void {
-  fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2))
+  try {
+    const dir = path.dirname(SESSION_FILE)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(SESSION_FILE, JSON.stringify(session, null, 2))
+  } catch (e: unknown) {
+    console.error('session_save_error:', e instanceof Error ? e.message : e)
+  }
 }
 
 export function updateSessionStats(results: AnalysisResult[], session: SessionStats): SessionStats {

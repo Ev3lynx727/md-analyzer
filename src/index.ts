@@ -1,4 +1,4 @@
-export { analyzeFile, scanMarkdownFiles } from './core/analyzer.js'
+export { analyzeFile, analyzeFileWithMicromark, scanMarkdownFiles } from './core/analyzer.js'
 export { buildGraph, findOrphans, findBacklinks } from './core/graph.js'
 export { searchContent, filterByMetadata, rankByRelevance } from './core/search.js'
 export { getFragmentHealth } from './core/health.js'

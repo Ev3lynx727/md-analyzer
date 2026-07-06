@@ -2,10 +2,14 @@
 import { Command } from 'commander'
 import * as path from 'path'
 import * as fs from 'fs'
+import { fileURLToPath } from 'url'
 import { z } from 'zod'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import { CliOptions } from '../core/schema.js'
 import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
-import { scanMarkdownFiles, analyzeFile } from '../core/analyzer.js'
+import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
@@ -20,7 +24,7 @@ const program = new Command()
 
 program
   .name('md-analyzer')
-  .description('Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, and key points from .md files')
+  .description('Markdown document analyzer for AI agents - extract metadata, headings, links, tables, tokens, formatting counts, and key points from .md files')
   .version(pkgVersion, '--version, -v', 'Show version number')
   .arguments('[directory]')
   .option('--json', 'Output as JSON')
@@ -46,7 +50,7 @@ Examples:
   md-analyzer . --lint-fragments --json
   md-analyzer . --deps --json`)
 
-program.action((directory: string | undefined, options: Record<string, unknown>) => {
+program.action(async (directory: string | undefined, options: Record<string, unknown>) => {
   const startTime = Date.now()
 
   let parsed: CliOptions
@@ -66,17 +70,36 @@ program.action((directory: string | undefined, options: Record<string, unknown>)
 
   const configPath = resolveConfigPath()
   const config = getTomlConfig(configPath)
-  const targetDir = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
+  const targetArg = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
 
-  if (!parsed.json) console.log('Scanning: ' + targetDir + '\n')
+  let mdFiles: string[] = []
+  let scanErrors: string[] = []
 
-  const { files: mdFiles, errors: scanErrors } = scanMarkdownFiles(targetDir)
-  if (!parsed.json) {
-    console.log('Found ' + mdFiles.length + ' .md files\n')
-    if (scanErrors.length > 0) console.log('Warnings: ' + scanErrors.length + ' directories skipped\n')
+  try {
+    const stat = fs.statSync(targetArg)
+    if (stat.isFile()) {
+      if (targetArg.endsWith('.md')) mdFiles = [targetArg]
+      else {
+        scanErrors.push('not_a_markdown_file: ' + targetArg)
+        if (!parsed.json) console.log('Not a .md file: ' + targetArg + '\n')
+      }
+    } else if (stat.isDirectory()) {
+      if (!parsed.json) console.log('Scanning: ' + targetArg + '\n')
+      const scanned = scanMarkdownFiles(targetArg)
+      mdFiles = scanned.files
+      scanErrors = scanned.errors
+      if (!parsed.json) {
+        console.log('Found ' + mdFiles.length + ' .md files\n')
+        if (scanErrors.length > 0) console.log('Warnings: ' + scanErrors.length + ' directories skipped\n')
+      }
+    } else {
+      scanErrors.push('unsupported_path_type: ' + targetArg)
+    }
+  } catch {
+    scanErrors.push('path_not_found: ' + targetArg)
   }
 
-  let results = mdFiles.map(file => analyzeFile(file))
+  let results = mdFiles.map(file => { try { return analyzeFileWithMicromark(file) } catch { return analyzeFile(file) } })
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
     results[0].stats.errors.push(...scanErrors)
@@ -135,7 +158,7 @@ program.action((directory: string | undefined, options: Record<string, unknown>)
   writeRunLog({
     timestamp: new Date().toISOString(),
     sessionId: updatedSession.sessionId,
-    directory: targetDir,
+    directory: targetArg,
     flags: usedFlags,
     filesFound: mdFiles.length,
     filesProcessed: results.length,

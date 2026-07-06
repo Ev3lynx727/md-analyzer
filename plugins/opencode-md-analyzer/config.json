@@ -1,0 +1,17 @@
+{
+  "whitelist_names": [
+    "AGENTS.md", "CLAUDE.md", "GEMINI.md", "SKILL.md", "SKILLS.md",
+    "README.md", "CONTRIBUTING.md", "CHANGELOG.md",
+    "ARCHITECTURE.md", "ROADMAP.md", "DESIGN.md", "OVERVIEW.md",
+    "STEERING.md", "SPEC.md", "TODO.md", "NOTES.md", "DECISIONS.md",
+    "ADR.md", "HACKING.md", "DEVELOPMENT.md", "SETUP.md", "INSTALL.md",
+    "CURSOR.md", "WINDSURF.md", "COPILOT.md"
+  ],
+  "whitelist_paths": [
+    "docs/", "documentation/", "steering/", "skills/",
+    "adr/", "rfcs/", "specs/", ".kiro/", ".cursor/", ".windsurf/"
+  ],
+  "exclude_paths": [
+    "headquarters/"
+  ]
+}

@@ -20,7 +20,7 @@
 ### Basic Usage
 
 ```bash
-node md-analyzer.js <directory> [options]
+md-analyzer <file|directory> [options]
 ```
 
 ### Options
@@ -43,19 +43,19 @@ node md-analyzer.js <directory> [options]
 
 ```bash
 # Quick overview (single-shot for agents)
-node md-analyzer.js /path/to/docs --keypoints --json
+md-analyzer /path/to/docs --keypoints --json
 
 # Search with ranking
-node md-analyzer.js . --search "task lifecycle" --rank --json
+md-analyzer . --search "task lifecycle" --rank --json
 
 # Find backlinks
-node md-analyzer.js . --backlinks adr-2026-04-01 --json
+md-analyzer . --backlinks adr-2026-04-01 --json
 
 # Token budget tracking
-node md-analyzer.js . --session --budget 100000 --json
+md-analyzer . --session --budget 100000 --json
 
 # Find orphans
-node md-analyzer.js . --orphans --json
+md-analyzer . --orphans --json
 ```
 
 ---
@@ -212,7 +212,7 @@ result = graph.invoke({
 ```toml
 [tool.md-analyzer.config]
 default_directory = "/path/to/docs"
-tool_path = "md-analyzer.js"
+tool_path = "dist/cli/index.js"
 default_budget = 100000
 max_tokens = 200000
 max_results_default = 20
@@ -222,7 +222,7 @@ max_results_default = 20
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MD_ANALYZER_PATH` | Path to md-analyzer.js | `md-analyzer.js` |
+| `MD_ANALYZER_PATH` | Path to compiled CLI entry | `dist/cli/index.js` |
 | `MD_ANALYZER_DEFAULT_DIR` | Default directory | `.` |
 | `MD_ANALYZER_MAX_TOKENS` | Max token limit | `200000` |
 | `MD_ANALYZER_DEFAULT_BUDGET` | Default budget | `100000` |
