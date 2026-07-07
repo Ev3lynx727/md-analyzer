@@ -1,3 +1,26 @@
+# [0.3.0](https://github.com/Ev3lynx727/md-analyzer/compare/v0.2.2...v0.3.0) (2026-07-07)
+
+
+### Bug Fixes
+
+* --watch crashes on EACCES in recursive directories ([b30fbe3](https://github.com/Ev3lynx727/md-analyzer/commit/b30fbe3d97225be1f57da51be1de8e81c311ecd3))
+* cache prune uses cachedAt instead of mtimeMs ([711f883](https://github.com/Ev3lynx727/md-analyzer/commit/711f883bddbc34056b869fab6127985c89688a69))
+* disable npmPublish in semantic-release — manual publish only ([3359c15](https://github.com/Ev3lynx727/md-analyzer/commit/3359c15c083c784bbffe3c3878452b296973f2eb))
+* pre-push no longer runs npm test (too slow) + clean up stale monorepo pre-commit config ([9e87025](https://github.com/Ev3lynx727/md-analyzer/commit/9e870257fff67d39dac29e3403cb9096524b631d))
+* show help on bare `md-analyzer` invocation instead of scanning ([fea942f](https://github.com/Ev3lynx727/md-analyzer/commit/fea942fb2fb14316cd5d0f6e456d38b2838de504))
+* update CI to use ESM CLI and remove stale CommonJS artifacts ([c0b153d](https://github.com/Ev3lynx727/md-analyzer/commit/c0b153d9d4f5ae36cad19226885e877597ddf396))
+
+
+### Features
+
+* add --summary flag for aggregated stats across all files ([de9cac6](https://github.com/Ev3lynx727/md-analyzer/commit/de9cac6632bbebc37752ae4faaac714fc4be7a48))
+* add --watch mode (fs.watch recursive, 300ms debounce, live summary) ([9dc46bd](https://github.com/Ev3lynx727/md-analyzer/commit/9dc46bdfa1a0ddcdb3848f8c534c05bd2c6e35ae))
+* add file analysis cache (mtime+size) — second run is ~4000x faster ([34ddc01](https://github.com/Ev3lynx727/md-analyzer/commit/34ddc012abdcadfcde6829a4f2f8b83380fbd45a))
+* add line count to --summary extremes ([b64c692](https://github.com/Ev3lynx727/md-analyzer/commit/b64c6925932f2ebb79d2e79f8695427ef9d6aeab))
+* capture HTML embed src/href from raw HTML in markdown ([991e7ff](https://github.com/Ev3lynx727/md-analyzer/commit/991e7ff72b6678a95ada34d60a311bd1fe27e862))
+* expose library entry with subpath exports for ark-markdownkit ([f4e5d5a](https://github.com/Ev3lynx727/md-analyzer/commit/f4e5d5aefa55cab1360225b0687ebb375cc604f1))
+* merge v0.2.3 feature branch → develop ([c925803](https://github.com/Ev3lynx727/md-analyzer/commit/c9258037157275ea0c443d5f01eb8e3075a84f5c))
+
 # Changelog
 
 ## [0.2.3] - 2026-07-07
