@@ -1,6 +1,5 @@
 import * as fs from 'fs'
 import * as cp from 'child_process'
-import * as path from 'path'
 import type { AnalysisResult } from '../types/index.js'
 
 let _rgAvailable: boolean | null = null
@@ -27,7 +26,7 @@ export function searchContent(results: AnalysisResult[], keyword: string): Analy
 
   try {
     const out = cp.execFileSync('rg', ['-ilF', kw, ...files], { encoding: 'utf-8', timeout: 30000, maxBuffer: 10 * 1024 * 1024 })
-    const matched = new Set(out.trim().split('\n').filter(Boolean).map(f => path.resolve(f)))
+    const matched = new Set(out.trim().split('\n').filter(Boolean))
     return results.filter(r => matched.has(r.file))
   } catch {
     return []
