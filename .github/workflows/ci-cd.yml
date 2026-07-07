@@ -6,9 +6,11 @@ env:
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   ci:
@@ -25,19 +27,28 @@ jobs:
 
   cd:
     needs: ci
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: npm
       - run: npm ci
-      - run: npm publish --access public
+      - run: npx semantic-release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GIT_AUTHOR_NAME: ev3lynx
+          GIT_AUTHOR_EMAIL: bot@ev3lynx.dev
+          GIT_COMMITTER_NAME: ev3lynx
+          GIT_COMMITTER_EMAIL: bot@ev3lynx.dev
