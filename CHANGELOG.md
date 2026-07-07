@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.3] - 2026-07-07
+
+### Added
+
+- **`--summary` flag** — aggregated totals across all files (headings, links, tokens, words, code blocks, tables), averages per file, and extremes (largest/smallest file, most headings/links/tokens). JSON output includes `files`, `totals`, `averages`, and `extremes` keys (`de9cac6`)
+- **File analysis cache** — mtime+size-based cache at `~/.local/cache/md-analyzer/analysis-cache.json`. Second run is ~4000x faster (8ms vs 30s for 14 files). 24h TTL with periodic stale-entry pruning (`34ddc01`)
+- **`--watch` mode** — native `fs.watch({ recursive: true })` with 300ms debounce per file. Live re-analysis on file changes with summary output. EACCES errors on permission-restricted dirs silently ignored (`9dc46bd`, `b30fbe3`)
+
+### Fixed
+
+- **Cache prune used `mtimeMs` instead of `cachedAt`** — files modified >24h ago were always re-analyzed. Added `cachedAt` field to `CacheEntry`; prune loop now compares against storage timestamp (`711f883`)
+- **`--watch` crashed on Linux systemd-private dirs** — `fs.watch({ recursive: true })` on `/tmp/` encountered protected directories. Wrapped in try/catch with error event listener for EACCES/EPERM (`b30fbe3`)
+
 ## [0.2.2] - 2026-06-30
 
 ### Changed

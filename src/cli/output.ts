@@ -21,6 +21,60 @@ export function extractKeyPoints(doc: AnalysisResult): object {
   }
 }
 
+export function buildSummary(results: AnalysisResult[], totalTokens: number, durationMs: number): object {
+  const count = results.length
+  if (count === 0) return { files: 0, durationMs }
+
+  const sum = (fn: (r: AnalysisResult) => number) => results.reduce((a, r) => a + fn(r), 0)
+  const avg = (fn: (r: AnalysisResult) => number) => sum(fn) / count
+
+  let largestFile = results[0], smallestFile = results[0]
+  let mostHeadings = results[0], mostLinks = results[0], mostTokens = results[0]
+
+  for (const r of results) {
+    if (r.stats.tokens > mostTokens.stats.tokens) mostTokens = r
+    if (r.stats.totalHeadings > mostHeadings.stats.totalHeadings) mostHeadings = r
+    if (r.stats.totalLinks > mostLinks.stats.totalLinks) mostLinks = r
+    if (r.stats.tokens < smallestFile.stats.tokens) smallestFile = r
+    if (r.stats.tokens > largestFile.stats.tokens) largestFile = r
+  }
+
+  return {
+    files: count,
+    durationMs,
+    totalTokensThisCall: totalTokens,
+    totals: {
+      headings: sum(r => r.stats.totalHeadings),
+      links: sum(r => r.stats.totalLinks),
+      internalLinks: sum(r => r.stats.internalLinks),
+      externalLinks: sum(r => r.stats.externalLinks),
+      wikilinks: sum(r => r.stats.totalWikilinks),
+      tokens: sum(r => r.stats.tokens),
+      words: sum(r => r.stats.wordCount),
+      chars: sum(r => r.stats.charCount),
+      codeBlocks: sum(r => r.stats.codeBlocks),
+      tables: sum(r => r.stats.tables),
+      bold: sum(r => r.stats.boldCount ?? 0),
+      italic: sum(r => r.stats.italicCount ?? 0),
+      bullets: sum(r => r.stats.bulletCount ?? 0)
+    },
+    averages: {
+      headings: +avg(r => r.stats.totalHeadings).toFixed(1),
+      links: +avg(r => r.stats.totalLinks).toFixed(1),
+      tokens: Math.round(avg(r => r.stats.tokens)),
+      words: Math.round(avg(r => r.stats.wordCount)),
+      readingTimeMin: Math.round(sum(r => r.stats.wordCount) / 200)
+    },
+    extremes: {
+      largestFile: { file: largestFile.fileName, tokens: largestFile.stats.tokens, lines: largestFile.stats.lineCount },
+      smallestFile: { file: smallestFile.fileName, tokens: smallestFile.stats.tokens, lines: smallestFile.stats.lineCount },
+      mostHeadings: { file: mostHeadings.fileName, count: mostHeadings.stats.totalHeadings, tokens: mostHeadings.stats.tokens, lines: mostHeadings.stats.lineCount },
+      mostLinks: { file: mostLinks.fileName, count: mostLinks.stats.totalLinks, tokens: mostLinks.stats.tokens, lines: mostLinks.stats.lineCount },
+      mostTokens: { file: mostTokens.fileName, tokens: mostTokens.stats.tokens, lines: mostTokens.stats.lineCount }
+    }
+  }
+}
+
 export function writeRunLog(log: RunLog): void {
   try {
     if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true })

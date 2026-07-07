@@ -66,6 +66,8 @@ export function walkCodeBlocks(content: string): CodeBlockRegion[] | null {
   }
 }
 
+const HTML_SRC_RE = /<(\w+)\s[^>]*?(?:src|href)="([^"]+)"/gi
+
 export function walkLinks(content: string): MicromarkLink[] | null {
   try {
     const events = parseEvents(content)
@@ -87,13 +89,18 @@ export function walkLinks(content: string): MicromarkLink[] | null {
 
     const links: MicromarkLink[] = []
     let current: { type: string; start: number; text: string; url: string; hasRef: boolean } | null = null
+    let htmlBlock: { start: number; end: number } | null = null
 
     for (const ev of events) {
       const token = ev[1]
       const slice = (t: typeof token): string =>
         content.slice(t.start.offset, t.end?.offset ?? t.start.offset)
 
-      if (ev[0] === 'enter' && (token.type === 'link' || token.type === 'image' || token.type === 'autolink')) {
+      if (ev[0] === 'enter' && (token.type === 'link' || token.type === 'image' || token.type === 'autolink' || token.type === 'htmlFlow')) {
+        if (token.type === 'htmlFlow') {
+          htmlBlock = { start: token.start.offset, end: 0 }
+          continue
+        }
         current = { type: token.type, start: token.start.offset, text: '', url: '', hasRef: false }
       }
 
@@ -109,6 +116,24 @@ export function walkLinks(content: string): MicromarkLink[] | null {
           current.url = slice(token)
           if (!current.text) current.text = current.url
         }
+      }
+
+      if (ev[0] === 'exit' && token.type === 'htmlFlow' && htmlBlock) {
+        htmlBlock.end = token.end?.offset ?? content.length
+        const raw = content.slice(htmlBlock.start, htmlBlock.end)
+        HTML_SRC_RE.lastIndex = 0
+        for (const m of raw.matchAll(HTML_SRC_RE)) {
+          links.push({
+            text: m[2],
+            url: m[2],
+            start: htmlBlock.start + (m.index ?? 0),
+            end: htmlBlock.start + (m.index ?? 0) + m[0].length,
+            isImage: m[1].toLowerCase() === 'img',
+            isAutolink: false,
+            isReference: false
+          })
+        }
+        htmlBlock = null
       }
 
       if (ev[0] === 'exit' && current && token.type === current.type) {

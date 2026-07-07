@@ -11,11 +11,13 @@ CLI tool + agent-plugin ecosystem for Markdown document analysis. Extracts headi
 ```
 src/
   cli/index.ts              Commander CLI, flags, orchestration
-  cli/output.ts             extractKeyPoints(), writeRunLog()
+  cli/output.ts             extractKeyPoints(), writeRunLog(), buildSummary()
   core/
     analyzer.ts             analyzeFile() sync, analyzeFileWithMicromark() sync
+    cache.ts                analyzeFileCached() — mtime+size cache with 24h TTL
     extractors.ts           @deprecated regex fallbacks: extractHeadings/Links/Tables
     counters.ts             word/char/line/token counting via js-tiktoken
+    watcher.ts              watchDirectory() — fs.watch recursive with 300ms debounce
     micromark-walk.ts       token walkers: code blocks, links, headings, tables, formatting
     hybrid-merge.ts         micromark filters/corrects regex output
     search.ts               ripgrep-first searchContent() + rankByRelevance()
@@ -25,8 +27,7 @@ src/
     schema.ts               Zod schemas: CliOptions, AnalyzerConfig
   types/index.ts            Link, Heading, Table, Stats, AnalysisResult, Graph, etc.
   utils/
-    constants.ts            SKIP_DIRS, SESSION_FILE, LOG_DIR
-    config.ts               resolveConfigPath(), getTomlConfig()
+    constants.ts            SKIP_DIRS, SESSION_FILE, CACHE_FILE, LOG_DIR
 ```
 
 ## Hybrid Pipeline
@@ -81,6 +82,8 @@ AnalysisResult {
 | Flag | Behavior |
 |------|----------|
 | --json | JSON output (default if no flag) |
+| --summary | Aggregated totals + averages + extremes across all files |
+| --watch | Live re-analysis via fs.watch recursive with 300ms debounce |
 | --search <kw> | ripgrep -ilF match, fallback includes |
 | --filter k=v | Metadata filter |
 | --rank | ripgrep -icF count sort, paired with --search |
@@ -101,8 +104,7 @@ Accepts both .md files and directories. fs.statSync detection.
 | Framework | Mechanism | Config | Status |
 |-----------|-----------|--------|--------|
 | opencode | Plugin: tool.execute.before + after | ~/.config/opencode/plugins/md-analyzer.ts + config.json | Working |
-| openclaw | before_tool_call TS handler | ~/.openclaw/hooks/md-analyzer/ + openclaw.json | Working |
-| kiro-cli | preToolUse Python hook | ~/.kiro/hooks/pre_read_md.py | Manual |
+| openclaw | — | — | No active plugin (opencode covers pre-read) |
 | hermes | hooks: {} map | ~/.hermes/config.yaml | Untested |
 
 ### Plugin Tiered Read Behavior
@@ -117,11 +119,13 @@ Config lives in config.json alongside plugin.ts. Built-in defaults if config mis
 
 ## Current State
 
+- v0.2.3: --summary, caching (4000x speedup on re-run), --watch (live re-analysis via fs.watch recursive)
 - Phases 1-4 (code mask, ref links/autolinks/images, setext headings, full token extraction) — complete
 - Inline formatting — regex-based, Stats-only (bold/italic/bullet counts)
 - ripgrep — execFileSync with -ilF/-icF, cached check, fallback to readFileSync
-- CLI — file + directory support, path_not_found errors
-- Plugin — config.json externalized, opencode + openclaw hooks shipping
+- CLI — file + directory support, path_not_found errors; --summary and --watch flags
+- Cache — mtime+size at `~/.local/cache/md-analyzer/analysis-cache.json`, 24h TTL, periodic prune
+- Plugin — config.json externalized, opencode plugin shipping
 - md-analyzer install --hook — not implemented yet
 - md-analyzer install --mcp — not implemented yet
 
@@ -139,8 +143,7 @@ Config lives in config.json alongside plugin.ts. Built-in defaults if config mis
 | src/cli/output.ts | Keypoints extract + run log |
 | plugins/opencode-md-analyzer/plugin.ts | Opencode plugin lifecycle |
 | plugins/opencode-md-analyzer/config.json | External tier config |
-| plugins/openclaw-md-analyzer/handler.ts | Openclaw before_tool_call handler |
-| python/pre_read.py | Python pre-read hook |
+| plugins/opencode-md-analyzer/plugin.ts | Opencode plugin lifecycle |
 
 ## Recent Changes
 

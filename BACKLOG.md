@@ -103,13 +103,11 @@ No mismatches found — all documentation claims are consistent with source stat
 | # | Item | Status | Root Cause | Why | What's the Matter | Description |
 |---|------|--------|------------|-----|-------------------|-------------|
 | 1 | Add `--help` flag | ✅ Done | — | — | — | Already implemented |
-| 2 | Add `--summary` for aggregated stats | ⬜ | Not implemented | Reduces output tokens for large scans | Agents waste context on per-file details | New flag to show only totals |
-| 3 | File watcher mode (`--watch`) | ⬜ | Not implemented | Live re-indexing for editor workflows | Manual re-run required on file changes | Chokidar-based watch mode |
+| 2 | Add `--summary` for aggregated stats | ✅ Done | v0.2.3 feature/summary | Aggregated totals + averages + extremes across all files | Native fs.watch (replaced chokidar dependency) | `de9cac6` |
+| 3 | File watcher mode (`--watch`) | ✅ Done | v0.2.3 feature/watch | Live re-indexing via native fs.watch recursive with 300ms debounce | EACCES errors on permission-restricted dirs silently ignored | `9dc46bd`, `b30fbe3` |
 | 4 | Streaming output for large results | ⬜ | Needs architectural change | Enables processing 1000+ files | Memory pressure with current all-at-once approach | Generator-based output |
 | 5 | Parallel file scanning | ⬜ | Worker threads needed | Speed up large directory scans | Single-threaded I/O bottleneck | Worker pool for md file discovery |
-| 6 | Caching layer | ⬜ | Needs file hash tracking | Skip unchanged files between runs | Re-analyzes same files every time | MD5-based cache |
+| 6 | Caching layer | ✅ Done | v0.2.3 feature/cache | mtime+size cache at `~/.local/cache/md-analyzer/analysis-cache.json`, 24h TTL | 4000x speedup on re-run (8ms vs 30s for 14 files) | `34ddc01`, `711f883` |
 | 7 | MCP server wrapper | ⬜ | Requires protocol implementation | Native AI agent protocol support | CLI-only restricts integration scope | stdio MCP server |
 | 8 | Web UI for document graphs | ⬜ | Separate project | Visual exploration of doc topology | CLI-only, no visual tooling | Svelte/React frontend |
 | 9 | Vector DB integration | ⬜ | External service needed | Semantic search across docs | Keyword search only, no embeddings | Upsert to Pinecone/Chroma |
-
-
