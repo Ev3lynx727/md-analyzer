@@ -56,6 +56,11 @@ Examples:
   md-analyzer . --deps --json`)
 
 program.action(async (directory: string | undefined, options: Record<string, unknown>) => {
+  if (directory === undefined && process.argv.slice(2).length === 0) {
+    program.help()
+    return
+  }
+
   const startTime = Date.now()
 
   let parsed: CliOptions
