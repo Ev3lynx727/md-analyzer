@@ -11,6 +11,8 @@
 | Feature | Description |
 |---------|-------------|
 | **Keypoints** | Single-shot document overview (ideal for agents) |
+| **Summary** | Aggregated totals + averages + extremes across all files (`--summary`) |
+| **Watch** | Live re-analysis on file changes via fs.watch (`--watch`) |
 | **Token Tracking** | Session-based token budget with persistent storage (`~/.local/share/md-analyzer/tokens/md-analyzer-session.json`) |
 | **Graph** | Document relationship topology (backlinks, orphans) |
 | **Search** | Keyword search with relevance ranking |
@@ -101,6 +103,8 @@ node dist/cli/index.js <file|directory> [options]
 | Flag | Description | Example |
 |------|-------------|---------|
 | `--json` | Output as JSON | `--json` |
+| `--summary` | Aggregated totals + averages + extremes across all files | `--summary` |
+| `--watch` | Live re-analysis via fs.watch with 300ms debounce | `--watch` |
 | `--search <kw>` | Search keyword in content | `--search "task"` |
 | `--filter <k=v>` | Filter by metadata field | `--filter "category=guides"` |
 | `--rank` | Rank results by relevance | `--search "task" --rank` |
@@ -122,6 +126,12 @@ md-analyzer path/to/doc.md --keypoints --json
 
 # Quick overview — entire directory
 md-analyzer /path/to/docs --keypoints --json
+
+# Aggregated summary (totals, averages, extremes)
+md-analyzer . --summary --json
+
+# Live re-analysis on file changes
+md-analyzer . --watch
 
 # Search with ranking
 md-analyzer . --search "task lifecycle" --rank --json

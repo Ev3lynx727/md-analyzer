@@ -11,11 +11,13 @@ CLI tool + agent-plugin ecosystem for Markdown document analysis. Extracts headi
 ```
 src/
   cli/index.ts              Commander CLI, flags, orchestration
-  cli/output.ts             extractKeyPoints(), writeRunLog()
+  cli/output.ts             extractKeyPoints(), writeRunLog(), buildSummary()
   core/
     analyzer.ts             analyzeFile() sync, analyzeFileWithMicromark() sync
+    cache.ts                analyzeFileCached() — mtime+size cache with 24h TTL
     extractors.ts           @deprecated regex fallbacks: extractHeadings/Links/Tables
     counters.ts             word/char/line/token counting via js-tiktoken
+    watcher.ts              watchDirectory() — fs.watch recursive with 300ms debounce
     micromark-walk.ts       token walkers: code blocks, links, headings, tables, formatting
     hybrid-merge.ts         micromark filters/corrects regex output
     search.ts               ripgrep-first searchContent() + rankByRelevance()
@@ -25,7 +27,7 @@ src/
     schema.ts               Zod schemas: CliOptions, AnalyzerConfig
   types/index.ts            Link, Heading, Table, Stats, AnalysisResult, Graph, etc.
   utils/
-    constants.ts            SKIP_DIRS, SESSION_FILE, LOG_DIR
+    constants.ts            SKIP_DIRS, SESSION_FILE, CACHE_FILE, LOG_DIR
     config.ts               resolveConfigPath(), getTomlConfig()
 ```
 
@@ -81,6 +83,8 @@ AnalysisResult {
 | Flag | Behavior |
 |------|----------|
 | --json | JSON output (default if no flag) |
+| --summary | Aggregated totals + averages + extremes across all files |
+| --watch | Live re-analysis via fs.watch recursive with 300ms debounce |
 | --search <kw> | ripgrep -ilF match, fallback includes |
 | --filter k=v | Metadata filter |
 | --rank | ripgrep -icF count sort, paired with --search |
@@ -117,10 +121,12 @@ Config lives in config.json alongside plugin.ts. Built-in defaults if config mis
 
 ## Current State
 
+- v0.2.3: --summary, caching (4000x speedup on re-run), --watch (live re-analysis via fs.watch recursive)
 - Phases 1-4 (code mask, ref links/autolinks/images, setext headings, full token extraction) — complete
 - Inline formatting — regex-based, Stats-only (bold/italic/bullet counts)
 - ripgrep — execFileSync with -ilF/-icF, cached check, fallback to readFileSync
-- CLI — file + directory support, path_not_found errors
+- CLI — file + directory support, path_not_found errors; --summary and --watch flags
+- Cache — mtime+size at `~/.local/cache/md-analyzer/analysis-cache.json`, 24h TTL, periodic prune
 - Plugin — config.json externalized, opencode + openclaw hooks shipping
 - md-analyzer install --hook — not implemented yet
 - md-analyzer install --mcp — not implemented yet
