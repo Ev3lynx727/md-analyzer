@@ -11,6 +11,7 @@ import { CliOptions } from '../core/schema.js'
 import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
+import { analyzeFileCached } from '../core/cache.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
 import { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } from '../core/session.js'
@@ -101,7 +102,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     scanErrors.push('path_not_found: ' + targetArg)
   }
 
-  let results = mdFiles.map(file => { try { return analyzeFileWithMicromark(file) } catch { return analyzeFile(file) } })
+  let results = mdFiles.map(file => analyzeFileCached(file, analyzeFileWithMicromark, analyzeFile))
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
     results[0].stats.errors.push(...scanErrors)
