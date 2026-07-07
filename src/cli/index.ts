@@ -147,9 +147,11 @@ program.action(async (directory: string | undefined, options: Record<string, unk
 
   const session = loadSession()
   const updatedSession = updateSessionStats(results, session)
-  saveSession(updatedSession)
   const tokensThisCall = results.reduce((sum, r) => sum + r.stats.tokens, 0)
-  if (parsed.session) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  if (parsed.session) {
+    saveSession(updatedSession)
+    console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  }
   else if (parsed.summary) console.log(JSON.stringify(buildSummary(limitedResults, tokensThisCall, Date.now() - startTime), null, 2))
   else if (parsed.keypoints) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
   else if (parsed.lintFragments) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
