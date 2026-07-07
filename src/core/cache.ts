@@ -6,6 +6,7 @@ import type { AnalysisResult } from '../types/index.js'
 interface CacheEntry {
   mtimeMs: number
   size: number
+  cachedAt: number
   result: AnalysisResult
 }
 
@@ -39,7 +40,7 @@ export function analyzeFileCached(file: string, analyze: (f: string) => Analysis
   const key = fs.realpathSync(file)
   const cached = store.entries[key]
   const maxAge = 1000 * 60 * 60 * 24
-  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size && cached.cachedAt) {
     return cached.result
   }
   let result: AnalysisResult
@@ -48,11 +49,11 @@ export function analyzeFileCached(file: string, analyze: (f: string) => Analysis
   } catch {
     result = fallback(file)
   }
-  store.entries[key] = { mtimeMs: stat.mtimeMs, size: stat.size, result }
-  // prune stale entries periodically
+  store.entries[key] = { mtimeMs: stat.mtimeMs, size: stat.size, cachedAt: Date.now(), result }
+  // prune stale entries periodically by cachedAt
   const now = Date.now()
   for (const [k, v] of Object.entries(store.entries)) {
-    if (now - v.mtimeMs > maxAge) delete store.entries[k]
+    if (now - v.cachedAt > maxAge) delete store.entries[k]
   }
   saveCache(store)
   return result
