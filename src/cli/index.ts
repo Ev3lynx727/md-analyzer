@@ -8,7 +8,6 @@ import { z } from 'zod'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 import { CliOptions } from '../core/schema.js'
-import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { analyzeFileCached } from '../core/cache.js'
@@ -74,9 +73,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     process.exit(1)
   }
 
-  const configPath = resolveConfigPath()
-  const config = getTomlConfig(configPath)
-  const targetArg = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
+  const targetArg = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || process.cwd()
 
   let mdFiles: string[] = []
   let scanErrors: string[] = []
