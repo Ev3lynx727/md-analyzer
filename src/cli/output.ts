@@ -66,11 +66,11 @@ export function buildSummary(results: AnalysisResult[], totalTokens: number, dur
       readingTimeMin: Math.round(sum(r => r.stats.wordCount) / 200)
     },
     extremes: {
-      largestFile: { file: largestFile.fileName, tokens: largestFile.stats.tokens },
-      smallestFile: { file: smallestFile.fileName, tokens: smallestFile.stats.tokens },
-      mostHeadings: { file: mostHeadings.fileName, count: mostHeadings.stats.totalHeadings },
-      mostLinks: { file: mostLinks.fileName, count: mostLinks.stats.totalLinks },
-      mostTokens: { file: mostTokens.fileName, tokens: mostTokens.stats.tokens }
+      largestFile: { file: largestFile.fileName, tokens: largestFile.stats.tokens, lines: largestFile.stats.lineCount },
+      smallestFile: { file: smallestFile.fileName, tokens: smallestFile.stats.tokens, lines: smallestFile.stats.lineCount },
+      mostHeadings: { file: mostHeadings.fileName, count: mostHeadings.stats.totalHeadings, tokens: mostHeadings.stats.tokens, lines: mostHeadings.stats.lineCount },
+      mostLinks: { file: mostLinks.fileName, count: mostLinks.stats.totalLinks, tokens: mostLinks.stats.tokens, lines: mostLinks.stats.lineCount },
+      mostTokens: { file: mostTokens.fileName, tokens: mostTokens.stats.tokens, lines: mostTokens.stats.lineCount }
     }
   }
 }
