@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { AnalysisResult } from '../types/index.js'
 import { buildSummary } from '../cli/output.js'
+import { scanMarkdownFiles } from './analyzer.js'
 
 type Reanalyse = (files: string[]) => AnalysisResult[]
 
@@ -12,18 +13,8 @@ export function watchDirectory(dir: string, reanalyse: Reanalyse): void {
   function removeFile(f: string) { mdFiles.delete(f) }
 
   process.stdout.write('Scanning for .md files...\n')
-  function scan(d: string) {
-    let entries: string[]
-    try { entries = fs.readdirSync(d) } catch { return }
-    for (const e of entries) {
-      const p = path.join(d, e)
-      let stat: fs.Stats
-      try { stat = fs.statSync(p) } catch { continue }
-      if (stat.isDirectory() && !e.startsWith('.') && e !== 'node_modules' && e !== 'dist' && e !== '.git') scan(p)
-      else if (stat.isFile()) addFile(p)
-    }
-  }
-  scan(dir)
+  const scanned = scanMarkdownFiles(dir)
+  for (const f of scanned.files) addFile(f)
 
   process.stdout.write(`Watching ${dir} (${mdFiles.size} .md files)\n`)
   const reanalyseAndPrint = (changed: string[]) => {
