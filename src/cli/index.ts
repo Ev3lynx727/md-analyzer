@@ -14,7 +14,7 @@ import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
 import { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } from '../core/session.js'
-import { extractKeyPoints, writeRunLog } from './output.js'
+import { extractKeyPoints, buildSummary, writeRunLog } from './output.js'
 
 const pkgVersion: string = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf-8')
@@ -37,6 +37,7 @@ program
   .option('--backlinks <doc>', 'Find docs linking to <doc>')
   .option('--keypoints', 'Quick overview (single-shot)')
   .option('--lint-fragments', 'Fragment health check')
+  .option('--summary', 'Aggregated stats across all files')
   .option('--session', 'Token budget report')
   .option('--budget <n>', 'Set token budget limit', parseInt, 100000)
   .option('--max-results <n>', 'Limit output', parseInt, 0)
@@ -44,6 +45,7 @@ program
 
 Examples:
   md-analyzer /path/to/docs --keypoints --json
+  md-analyzer . --summary --json
   md-analyzer . --search "task" --rank --json
   md-analyzer . --session --budget 50000 --json
   md-analyzer . --orphans --json
@@ -133,6 +135,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
   const tokensThisCall = results.reduce((sum, r) => sum + r.stats.tokens, 0)
 
   if (parsed.session) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  else if (parsed.summary) console.log(JSON.stringify(buildSummary(limitedResults, tokensThisCall, Date.now() - startTime), null, 2))
   else if (parsed.keypoints) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
   else if (parsed.lintFragments) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
   else if (parsed.deps) {
@@ -154,7 +157,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
   }
 
   const usedFlags = process.argv.slice(2).filter(a => a.startsWith('--')).map(a => a.replace(/=.*/, ''))
-  const mode = parsed.deps ? 'deps' : parsed.lintFragments ? 'lint-fragments' : parsed.session ? 'session' : parsed.keypoints ? 'keypoints' : parsed.orphans ? 'orphans' : parsed.backlinks ? 'backlinks' : parsed.graph ? 'graph' : parsed.search ? 'search' : 'default'
+  const mode = parsed.deps ? 'deps' : parsed.lintFragments ? 'lint-fragments' : parsed.session ? 'session' : parsed.summary ? 'summary' : parsed.keypoints ? 'keypoints' : parsed.orphans ? 'orphans' : parsed.backlinks ? 'backlinks' : parsed.graph ? 'graph' : parsed.search ? 'search' : 'default'
   writeRunLog({
     timestamp: new Date().toISOString(),
     sessionId: updatedSession.sessionId,
