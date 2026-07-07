@@ -12,6 +12,7 @@ import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
 import { analyzeFileCached } from '../core/cache.js'
+import { watchDirectory } from '../core/watcher.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
 import { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } from '../core/session.js'
@@ -39,6 +40,7 @@ program
   .option('--keypoints', 'Quick overview (single-shot)')
   .option('--lint-fragments', 'Fragment health check')
   .option('--summary', 'Aggregated stats across all files')
+  .option('--watch', 'Watch mode — re-analyze on file changes')
   .option('--session', 'Token budget report')
   .option('--budget <n>', 'Set token budget limit', parseInt, 100000)
   .option('--max-results <n>', 'Limit output', parseInt, 0)
@@ -47,6 +49,7 @@ program
 Examples:
   md-analyzer /path/to/docs --keypoints --json
   md-analyzer . --summary --json
+  md-analyzer . --watch --summary  # live re-analysis with summary output
   md-analyzer . --search "task" --rank --json
   md-analyzer . --session --budget 50000 --json
   md-analyzer . --orphans --json
@@ -102,6 +105,21 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     scanErrors.push('path_not_found: ' + targetArg)
   }
 
+  if (parsed.watch) {
+    if (parsed.directory) {
+      try {
+        watchDirectory(targetArg, (changed) => changed.map(f => analyzeFileCached(f, analyzeFileWithMicromark, analyzeFile)))
+      } catch (e: unknown) {
+        console.error('watch_error:', e instanceof Error ? e.message : e)
+        process.exit(1)
+      }
+    } else {
+      console.error('--watch requires a directory path')
+      process.exit(1)
+    }
+    return
+  }
+
   let results = mdFiles.map(file => analyzeFileCached(file, analyzeFileWithMicromark, analyzeFile))
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
@@ -134,7 +152,6 @@ program.action(async (directory: string | undefined, options: Record<string, unk
   const updatedSession = updateSessionStats(results, session)
   saveSession(updatedSession)
   const tokensThisCall = results.reduce((sum, r) => sum + r.stats.tokens, 0)
-
   if (parsed.session) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
   else if (parsed.summary) console.log(JSON.stringify(buildSummary(limitedResults, tokensThisCall, Date.now() - startTime), null, 2))
   else if (parsed.keypoints) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))

@@ -17,6 +17,7 @@ export const CliOptions = z.object({
   keypoints: z.boolean().default(false),
   lintFragments: z.boolean().default(false),
   summary: z.boolean().default(false),
+  watch: z.boolean().default(false),
   session: z.boolean().default(false),
   budget: z.number().int().positive('Budget must be a positive integer').default(100000),
   maxResults: z.number().int().nonnegative('max-results must be non-negative').default(0),
