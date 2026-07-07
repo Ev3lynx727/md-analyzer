@@ -34,6 +34,8 @@ md-analyzer <file|directory> [options]
 | `--graph` | Document relationship graph | `--graph` |
 | `--orphans` | Find unreferenced docs | `--orphans` |
 | `--backlinks <doc>` | Find docs linking to `<doc>` | `--backlinks "adr-2026-01"` |
+| `--summary` | Aggregated totals + averages + extremes across all files | `--summary` |
+| `--watch` | Live re-analysis via fs.watch with 300ms debounce | `--watch` |
 | `--keypoints` | Single-shot overview | `--keypoints` |
 | `--session` | Token budget report | `--session` |
 | `--budget <n>` | Set token budget | `--budget 50000` |
@@ -60,52 +62,7 @@ md-analyzer . --orphans --json
 
 ---
 
-## Python API
 
-### MDAnalyzerTool Class
-
-```python
-from langgraph_integration import MDAnalyzerTool
-
-tool = MDAnalyzerTool()
-result = tool.run("/path/to/docs", keypoints=True)
-```
-
-#### Methods
-
-| Method | Description |
-|--------|-------------|
-| `run(directory, **kwargs)` | Run analysis with options |
-
-#### Options (kwargs)
-
-```python
-tool.run(directory,
-    json=True,           # Return JSON
-    keypoints=True,      # Quick overview
-    search="keyword",    # Search content
-    filter="key=value",  # Filter metadata
-    rank=True,           # Rank by relevance
-    graph=True,          # Get graph
-    orphans=True,        # Find orphans
-    backlinks="doc",    # Find backlinks
-    max_results=20       # Limit results
-)
-```
-
-### LangGraph Integration
-
-```python
-from langgraph_integration import create_doc_analysis_graph
-
-graph = create_doc_analysis_graph()
-result = graph.invoke({
-    "query": "task lifecycle",
-    "directory": "/path/to/docs"
-})
-```
-
----
 
 ## Input/Output Formats
 
@@ -207,38 +164,13 @@ result = graph.invoke({
 
 ## Configuration
 
-### hooks.toml
-
-```toml
-[tool.md-analyzer.config]
-default_directory = "/path/to/docs"
-tool_path = "dist/cli/index.js"
-default_budget = 100000
-max_tokens = 200000
-max_results_default = 20
-```
+Priority chain: CLI flag → `MD_ANALYZER_DEFAULT_DIR` env var → `process.cwd()`.
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MD_ANALYZER_PATH` | Path to compiled CLI entry | `dist/cli/index.js` |
-| `MD_ANALYZER_DEFAULT_DIR` | Default directory | `.` |
-| `MD_ANALYZER_MAX_TOKENS` | Max token limit | `200000` |
-| `MD_ANALYZER_DEFAULT_BUDGET` | Default budget | `100000` |
-| `MD_ANALYZER_MAX_RESULTS` | Max results | `20` |
-
-### Priority Chain
-
-```
-CLI --max-results 3
-  ↓ (if not set)
-MD_ANALYZER_MAX_RESULTS=5
-  ↓ (if not set)
-max_results_default=20 (hooks.toml)
-  ↓ (if not set)
-0 (no limit)
-```
+| `MD_ANALYZER_DEFAULT_DIR` | Default directory | `process.cwd()` |
 
 ---
 
@@ -246,7 +178,9 @@ max_results_default=20 (hooks.toml)
 
 ### Session File
 
-Location: `/tmp/md-analyzer-session.json`
+Location: `~/.local/share/md-analyzer/tokens/md-analyzer-session.json`
+
+Only written to disk when the `--session` flag is active. Tracking is in-memory otherwise.
 
 ```json
 {
@@ -260,7 +194,7 @@ Location: `/tmp/md-analyzer-session.json`
 
 ### Run Logs
 
-Location: `/home/ev3lynx/dev/micromark/log/{sessionId}.json`
+Location: `~/.local/state/md-analyzer/log/{sessionId}.json`
 
 ```json
 [
@@ -290,7 +224,7 @@ Location: `/home/ev3lynx/dev/micromark/log/{sessionId}.json`
 |-------|-------------|--------|
 | `permission_denied` | Can't access directory | Added to `stats.errors` |
 | `file_read_error` | Can't read file | Returns partial result |
-| `token_count_fallback` | tiktoken unavailable | Uses `charCount/4` |
+| `token_count_fallback` | tiktoken unavailable (legacy) | Uses `charCount/4` |
 
 ### Example Error Output
 

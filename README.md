@@ -198,58 +198,21 @@ const result = execSync('md-analyzer ./docs --keypoints --json', { encoding: 'ut
 const docs = JSON.parse(result);
 ```
 
-```python
-# Python
-import subprocess, json
-result = subprocess.run(["md-analyzer", "./docs", "--keypoints", "--json"],
-    capture_output=True, text=True)
-docs = json.loads(result.stdout)
-```
-
 For agent hooks, see the [pre-read integration](#agent-hook-integration-pre-read) section above.
 
 ---
 
 ## Configuration
 
-### hooks.toml
-
-```toml
-[tool.md-analyzer.config]
-# Path configuration
-default_directory = "/path/to/docs"
-
-# Token budget configuration
-default_budget = 100000
-max_tokens = 200000
-
-# Output safety (prevent token blowout)
-max_results_default = 0
-```
+Priority chain: CLI flag → `MD_ANALYZER_DEFAULT_DIR` env var → `process.cwd()`.
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MD_ANALYZER_PATH` | Path to compiled CLI entry | `dist/cli/index.js` |
-| `MD_ANALYZER_DEFAULT_DIR` | Default directory | `.` |
-| `MD_ANALYZER_MAX_TOKENS` | Max token limit | `200000` |
-| `MD_ANALYZER_DEFAULT_BUDGET` | Default budget | `100000` |
-| `MD_ANALYZER_MAX_RESULTS` | Max results | `20` |
+| `MD_ANALYZER_DEFAULT_DIR` | Default directory | `process.cwd()` |
 | `STATE_DIR` | Token tracking storage directory | `~/.local/share/md-analyzer` |
 | `LOG_DIR` | Run logs storage directory | `~/.local/state/md-analyzer/log` |
-
-### Priority Chain
-
-```
-CLI --max-results 3
-  ↓
-MD_ANALYZER_MAX_RESULTS=5
-  ↓
-max_results_default=0 (hooks.toml, default: no limit)
-  ↓
-0 (no limit — raw results)
-```
 
 ---
 
@@ -312,15 +275,10 @@ md-analyzer/
 │   │   ├── graph.ts          # Document relationship graph
 │   │   ├── search.ts         # Keyword search + relevance
 │   │   ├── health.ts         # Fragment health checks
-│   │   └── session.ts        # Token budget tracking → XDG persistent storage
+│   │   └── session.ts        # Token budget tracking (disk write only with --session)
 │   ├── types/index.ts        # Shared TypeScript types
-│   ├── utils/constants.ts    # SKIP_DIRS, SESSION_FILE, LOG_DIR (XDG paths)
-│   └── utils/config.ts       # TOML config parser
+│   └── utils/constants.ts    # SKIP_DIRS, SESSION_FILE, LOG_DIR (XDG paths)
 ├── dist/                     # Compiled output
-├── hooks.toml                # Configuration
-├── python/                   # Agent hook integration
-│   ├── pre_read.py
-│   └── README.md
 └── embedded-docs/            # Sample documents for testing
 ```
 
