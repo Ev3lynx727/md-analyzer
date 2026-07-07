@@ -49,8 +49,7 @@ src/
 │   └── schema.ts         # Zod CLI validation
 ├── types/index.ts        # AnalysisResult, DocNode, FragmentMeta, etc.
 └── utils/
-    ├── constants.ts      # SKIP_DIRS (node_modules, .git, etc.)
-    └── config.ts         # TOML parser for hooks.toml
+    └── constants.ts      # SKIP_DIRS (node_modules, .git, etc.)
 ```
 
 ### Analysis Flow
@@ -85,7 +84,7 @@ src/
 
 - **Options are additive**: `--keypoints`, `--graph`, `--search`, etc. can combine
 - **Default limit**: `max-results` defaults to 0 (no limit) to prevent silent truncation
-- **Session tracking**: Every run logs to `/tmp/md-analyzer-session.json` and `log/{sessionId}.json`
+- **Session tracking**: Loaded every run for sessionId; persisted to disk only with `--session` flag
 - **Output JSON**: Always pretty-print at indent 2 when `--json` is passed
 
 ### File Processing
@@ -97,9 +96,8 @@ src/
 
 ### Configuration
 
-- **hooks.toml** is the source of truth for runtime config (default_directory, default_budget, max_results_default)
-- **Priority chain**: CLI flag → env var → hooks.toml → hardcoded default
-- **Config parser** (`config.ts`) reads TOML at startup if found; silently skips if missing
+- **Priority chain**: CLI flag → `MD_ANALYZER_DEFAULT_DIR` env var → `process.cwd()`
+- **Session file** written only when `--session` flag is active; in-memory otherwise
 
 ### Micromark Integration
 
@@ -132,8 +130,17 @@ src/
 # Full analysis output as JSON
 node dist/cli/index.js . --json
 
-# See keypoints + session tokens
-node dist/cli/index.js . --keypoints --session --json
+# Aggregated summary across all files
+node dist/cli/index.js . --summary --json
+
+# Live re-analysis on file changes
+node dist/cli/index.js . --watch
+
+# See keypoints
+node dist/cli/index.js . --keypoints --json
+
+# Session token report (persists to disk)
+node dist/cli/index.js . --session --budget 100000 --json
 
 # Search + ranking
 node dist/cli/index.js . --search "pattern" --rank --json
@@ -142,5 +149,5 @@ node dist/cli/index.js . --search "pattern" --rank --json
 node dist/cli/index.js . --graph --json
 
 # See run logs
-cat log/*.json | jq
+cat ~/.local/state/md-analyzer/log/*.json | jq
 ```

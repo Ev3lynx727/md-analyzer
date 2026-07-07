@@ -51,9 +51,6 @@ function buildBaseResult(filePath: string, content: string, errors: string[]): A
   const wikilinks = extractWikilinks(markdownContent)
   const tables = extractTables(markdownContent)
   const counts = countStats(markdownContent)
-  if (counts.tokens === 0 && !errors.includes('token_count_fallback')) {
-    errors.push('token_count_fallback: tiktoken unavailable')
-  }
   const sections = computeSections(markdownContent, headings)
   const fileName = path.basename(filePath, '.md')
   return {

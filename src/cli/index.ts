@@ -8,13 +8,14 @@ import { z } from 'zod'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 import { CliOptions } from '../core/schema.js'
-import { getTomlConfig, resolveConfigPath } from '../utils/config.js'
 import { scanMarkdownFiles, analyzeFile, analyzeFileWithMicromark } from '../core/analyzer.js'
 import { buildGraph, findOrphans, findBacklinks } from '../core/graph.js'
+import { analyzeFileCached } from '../core/cache.js'
+import { watchDirectory } from '../core/watcher.js'
 import { searchContent, filterByMetadata, rankByRelevance } from '../core/search.js'
 import { getFragmentHealth } from '../core/health.js'
 import { loadSession, saveSession, updateSessionStats, getTokenBudgetReport } from '../core/session.js'
-import { extractKeyPoints, writeRunLog } from './output.js'
+import { extractKeyPoints, buildSummary, writeRunLog } from './output.js'
 
 const pkgVersion: string = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf-8')
@@ -37,6 +38,8 @@ program
   .option('--backlinks <doc>', 'Find docs linking to <doc>')
   .option('--keypoints', 'Quick overview (single-shot)')
   .option('--lint-fragments', 'Fragment health check')
+  .option('--summary', 'Aggregated stats across all files')
+  .option('--watch', 'Watch mode — re-analyze on file changes')
   .option('--session', 'Token budget report')
   .option('--budget <n>', 'Set token budget limit', parseInt, 100000)
   .option('--max-results <n>', 'Limit output', parseInt, 0)
@@ -44,6 +47,8 @@ program
 
 Examples:
   md-analyzer /path/to/docs --keypoints --json
+  md-analyzer . --summary --json
+  md-analyzer . --watch --summary  # live re-analysis with summary output
   md-analyzer . --search "task" --rank --json
   md-analyzer . --session --budget 50000 --json
   md-analyzer . --orphans --json
@@ -51,6 +56,11 @@ Examples:
   md-analyzer . --deps --json`)
 
 program.action(async (directory: string | undefined, options: Record<string, unknown>) => {
+  if (directory === undefined && process.argv.slice(2).length === 0) {
+    program.help()
+    return
+  }
+
   const startTime = Date.now()
 
   let parsed: CliOptions
@@ -68,9 +78,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     process.exit(1)
   }
 
-  const configPath = resolveConfigPath()
-  const config = getTomlConfig(configPath)
-  const targetArg = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || config.default_directory || process.cwd()
+  const targetArg = parsed.directory || process.env['MD_ANALYZER_DEFAULT_DIR'] || process.cwd()
 
   let mdFiles: string[] = []
   let scanErrors: string[] = []
@@ -99,7 +107,22 @@ program.action(async (directory: string | undefined, options: Record<string, unk
     scanErrors.push('path_not_found: ' + targetArg)
   }
 
-  let results = mdFiles.map(file => { try { return analyzeFileWithMicromark(file) } catch { return analyzeFile(file) } })
+  if (parsed.watch) {
+    if (parsed.directory) {
+      try {
+        watchDirectory(targetArg, (changed) => changed.map(f => analyzeFileCached(f, analyzeFileWithMicromark, analyzeFile)))
+      } catch (e: unknown) {
+        console.error('watch_error:', e instanceof Error ? e.message : e)
+        process.exit(1)
+      }
+    } else {
+      console.error('--watch requires a directory path')
+      process.exit(1)
+    }
+    return
+  }
+
+  let results = mdFiles.map(file => analyzeFileCached(file, analyzeFileWithMicromark, analyzeFile))
   if (scanErrors.length > 0 && results.length > 0) {
     if (!results[0].stats.errors) results[0].stats.errors = []
     results[0].stats.errors.push(...scanErrors)
@@ -129,10 +152,12 @@ program.action(async (directory: string | undefined, options: Record<string, unk
 
   const session = loadSession()
   const updatedSession = updateSessionStats(results, session)
-  saveSession(updatedSession)
   const tokensThisCall = results.reduce((sum, r) => sum + r.stats.tokens, 0)
-
-  if (parsed.session) console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  if (parsed.session) {
+    saveSession(updatedSession)
+    console.log(JSON.stringify(getTokenBudgetReport(updatedSession, parsed.budget), null, 2))
+  }
+  else if (parsed.summary) console.log(JSON.stringify(buildSummary(limitedResults, tokensThisCall, Date.now() - startTime), null, 2))
   else if (parsed.keypoints) console.log(JSON.stringify(limitedResults.map(doc => extractKeyPoints(doc)), null, 2))
   else if (parsed.lintFragments) console.log(JSON.stringify(getFragmentHealth(limitedResults), null, 2))
   else if (parsed.deps) {
@@ -154,7 +179,7 @@ program.action(async (directory: string | undefined, options: Record<string, unk
   }
 
   const usedFlags = process.argv.slice(2).filter(a => a.startsWith('--')).map(a => a.replace(/=.*/, ''))
-  const mode = parsed.deps ? 'deps' : parsed.lintFragments ? 'lint-fragments' : parsed.session ? 'session' : parsed.keypoints ? 'keypoints' : parsed.orphans ? 'orphans' : parsed.backlinks ? 'backlinks' : parsed.graph ? 'graph' : parsed.search ? 'search' : 'default'
+  const mode = parsed.deps ? 'deps' : parsed.lintFragments ? 'lint-fragments' : parsed.session ? 'session' : parsed.summary ? 'summary' : parsed.keypoints ? 'keypoints' : parsed.orphans ? 'orphans' : parsed.backlinks ? 'backlinks' : parsed.graph ? 'graph' : parsed.search ? 'search' : 'default'
   writeRunLog({
     timestamp: new Date().toISOString(),
     sessionId: updatedSession.sessionId,

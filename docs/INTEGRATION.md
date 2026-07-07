@@ -41,38 +41,7 @@ agent reads file
 ── file content ──────────────────
 ```
 
-### Manual install
-
-Copy the hook script and configure your agent:
-
-```bash
-# Copy the hook
-cp python/pre_read.py ~/.kiro/hooks/pre_read_md.py
-
-# Or reference it directly from the repo
-# (ensure repo path is stable)
-```
-
-#### kiro-cli config
-
-```json
-{
-  "preToolUse": [
-    {
-      "matcher": {"tool_name": "read"},
-      "command": "uv run python /path/to/pre_read_md.py"
-    }
-  ]
-}
-```
-
-The hook script is at [`python/pre_read.py`](../python/README.md).
-
 For opencode, see [Framework details → opencode](#opencode) below for the plugin-based setup.
-
-> **Note:** `pre_read.py` requires PyYAML (`uv add pyyaml` or `pip install pyyaml`). Falls back gracefully if unavailable.
-
-See [`python/pre_read.py`](../python/README.md) for full implementation details.
 
 ---
 
@@ -137,7 +106,7 @@ Registers md-analyzer as an MCP tool server so agents can call it on demand rath
 | Framework | Hook mechanism | Config file | Status |
 |-----------|---------------|-------------|--------|
 | opencode | Plugin (`tool.execute.before` + `tool.execute.after`) | `~/.config/opencode/plugins/<name>.ts` | ✅ Plugin (working) |
-| openclaw | `before_tool_call` TS handler | `~/.openclaw/openclaw.json` → `hooks.internal.entries` | 🔲 Planned |
+| openclaw | — | — | 🔲 No active plugin (opencode plugin covers same use case) |
 | kiro-cli | `preToolUse` | `~/.kiro/agents/agent_config.json` → `hooks.preToolUse` | ✅ Manual |
 | hermes | Python plugin (`plugin.yaml` + `__init__.py`) | `~/.hermes/plugins/<name>/plugin.yaml` | 🔲 Template available |
 | Cline | `preToolUse` | `cline.json` | 🔲 Manual (untested) |
@@ -208,30 +177,7 @@ The `matcher` field can be a tool name (`"read"`) or wildcard (`"*"`). The `comm
 
 #### openclaw
 
-Hooks are TypeScript modules living in `~/.openclaw/hooks/<name>/` with a `handler.ts` exporting a default function `(tool: string, input: any) => any`. Register in `openclaw.json` under `hooks.internal.entries`:
-
-```json
-{
-  "hooks": {
-    "internal": {
-      "enabled": true,
-      "entries": {
-        "md-analyzer": {
-          "enabled": true
-        }
-      }
-    }
-  }
-}
-```
-
-Copy the shipped hook:
-
-```bash
-cp -r plugins/openclaw-md-analyzer ~/.openclaw/hooks/md-analyzer
-```
-
-The handler receives tool calls before execution (`before_tool_call`) and can modify the input or inject context inline. See [`plugins/openclaw-md-analyzer/handler.ts`](../plugins/openclaw-md-analyzer/handler.ts).
+The opencode plugin covers the same pre-read keypoints use case. No separate openclaw hook is maintained.
 
 #### hermes
 
@@ -287,6 +233,6 @@ A working template is at `~/.hermes/plugins/md-analyzer/` with full `plugin.yaml
 
 ## See Also
 
-- [`python/pre_read.py`](../python/README.md) — Hook implementation
+- [`plugins/opencode-md-analyzer/plugin.ts`](../plugins/opencode-md-analyzer/plugin.ts) — Opencode plugin implementation
 - [`docs/API.md`](./API.md) — CLI and API reference
 - [`README.md`](../README.md) — Project overview

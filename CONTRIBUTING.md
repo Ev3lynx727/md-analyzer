@@ -74,7 +74,7 @@ If you're planning a significant change, open an issue first to discuss the appr
 
 - **Regex-first, AST second**: Current extractors are pure regex (fast, predictable). Micromark integration (if pursued) is a shadow-parser overlay that corrects regex blind spots — it never replaces the regex layer.
 - **CLI-first**: The tool is a terminal command. Library mode is secondary.
-- **Config over convention**: Hooks and rules live in `hooks.toml` and `config.yaml`.
+- **Config over convention**: Priority chain is CLI flag → env var → cwd.
 - **Verbatim output**: Never summarize or transform extracted content. Return what's in the file.
 
 ## Community

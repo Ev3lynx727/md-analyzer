@@ -17,3 +17,6 @@ export const SESSION_FILE = path.join(STATE_DIR, 'tokens', 'md-analyzer-session.
 
 // Get LOG_DIR from env, default to XDG state dir (~/.local/state/md-analyzer)
 export const LOG_DIR = process.env.LOG_DIR || path.join(os.homedir(), '.local', 'state', 'md-analyzer', 'log')
+
+// XDG cache dir for file analysis cache
+export const CACHE_FILE = path.join(os.homedir(), '.local', 'cache', 'md-analyzer', 'analysis-cache.json')
